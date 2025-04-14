@@ -3,19 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <title>聚餐開獎動畫</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     html, body {
       margin: 0;
       padding: 0;
       background: #000;
-      overflow: hidden;
       font-family: sans-serif;
       color: #fff;
+      text-align: center;
     }
     #container {
       position: relative;
-      width: 420px;
-      height: 420px;
+      width: 90vw;
+      max-width: 420px;
+      aspect-ratio: 1 / 1;
       border: 5px solid gold;
       border-radius: 50%;
       margin: 0 auto;
@@ -25,31 +27,45 @@
       justify-content: center;
     }
     canvas {
+      width: 100% !important;
+      height: auto !important;
       background-color: #111;
       border-radius: 50%;
+      display: block;
+    }
+    input, button {
+      display: block;
+      margin: 12px auto;
+      padding: 12px;
+      width: 90%;
+      max-width: 320px;
+      font-size: 1em;
+      border-radius: 8px;
+      border: none;
+      box-sizing: border-box;
     }
     button {
-      display: block;
-      margin: 20px auto;
-      padding: 12px 24px;
-      font-size: 1em;
-      font-weight: bold;
       background: #ffcc00;
-      border: none;
-      border-radius: 8px;
+      font-weight: bold;
       cursor: pointer;
+    }
+    h1 {
+      color: gold;
+      font-size: clamp(1.5rem, 4vw, 2.5rem);
+      margin-top: 16px;
     }
   </style>
 </head>
 <body>
-  <h1 style="text-align:center; color: gold;">🎱 聚餐開獎樂透球 🎱</h1>
+  <h1>🎱 聚餐開獎樂透球 🎱</h1>
   <div id="container">
     <canvas id="lotteryCanvas" width="400" height="400"></canvas>
   </div>
-  <input id="optionsInput" type="text" value="馬辣, 鼎旺, 撈王, 東豐東" style="display: block; margin: 10px auto; padding: 10px; width: 300px; text-align: center; font-size: 1em; border-radius: 8px; border: none;" placeholder="輸入選項，用逗號分隔">
+  <input id="optionsInput" type="text" value="馬辣, 鼎旺, 撈王, 東豐東" placeholder="輸入選項，用逗號分隔">
   <button id="startButton">🎲 點我開獎！</button>
 
   <script>
+    // 原始 script 保持不變，因為 Canvas 畫布與位置已由 CSS 響應式處理
     window.addEventListener('DOMContentLoaded', () => {
       const canvas = document.getElementById('lotteryCanvas');
       const ctx = canvas.getContext('2d');
