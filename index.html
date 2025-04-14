@@ -78,7 +78,17 @@
         options = input.value.split(',').map(x => x.trim()).filter(Boolean);
         balls = [];
         for (let i = 0; i < 40; i++) {
-          balls.push({
+          const colors = [
+          ['#fff8cc', '#d4af37'], // 金
+          ['#ffd6e0', '#ff5c8a'], // 粉紅
+          ['#ccf6ff', '#3399ff'], // 藍
+          ['#e0ffd6', '#66cc33'], // 綠
+          ['#f9f1c6', '#ffb347'], // 橘
+        ];
+        const colorPair = colors[Math.floor(Math.random() * colors.length)];
+        balls.push({
+          colorIn: colorPair[0],
+          colorOut: colorPair[1],
             x: Math.random() * 360 + 20,
             y: Math.random() * 360 + 20,
             vx: (Math.random() - 0.5) * 14,
@@ -88,7 +98,7 @@
             isWinner: false,
             popped: false,
             preserved: false,
-            angle: 0,
+            angle: Math.random() * Math.PI * 2,
             rotationSpeed: (Math.random() - 0.5) * 0.1
           });
         }
@@ -109,10 +119,17 @@
           ctx.rotate(ball.angle);
           ctx.beginPath();
           ctx.arc(0, 0, ball.r, 0, Math.PI * 2);
-          ctx.fillStyle = 'gold';
+          let grad = ctx.createRadialGradient(0, 0, ball.r * 0.2, 0, 0, ball.r);
+          grad.addColorStop(0, ball.colorIn);
+          grad.addColorStop(1, ball.colorOut);
+          ctx.fillStyle = grad;
           ctx.fill();
           ctx.fillStyle = 'black';
-          ctx.font = `bold ${Math.min(ball.r * 0.8, ball.r)}px sans-serif`;
+          let fontSize = ball.r * 0.9;
+          while (fontSize > 6 && ctx.measureText(ball.label).width > ball.r * 1.6) {
+            fontSize -= 1;
+            ctx.font = `bold ${fontSize}px sans-serif`;
+          }
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(ball.label, 0, 0);
@@ -140,7 +157,12 @@
           ctx.fill();
 
           ctx.fillStyle = 'black';
-          ctx.font = `bold ${Math.min(winnerBall.r * 0.8, winnerBall.r)}px sans-serif`;
+          let fontSize = winnerBall.r * 0.9;
+          ctx.font = `bold ${fontSize}px sans-serif`;
+          while (fontSize > 12 && ctx.measureText(winnerBall.label).width > winnerBall.r * 1.6) {
+            fontSize -= 1;
+            ctx.font = `bold ${fontSize}px sans-serif`;
+          }
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(winnerBall.label, 0, 0);
