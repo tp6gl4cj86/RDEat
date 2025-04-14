@@ -65,15 +65,14 @@
   <button id="startButton">🎲 點我開獎！</button>
 
   <script>
-    // 原始 script 保持不變，因為 Canvas 畫布與位置已由 CSS 響應式處理
     window.addEventListener('DOMContentLoaded', () => {
       const canvas = document.getElementById('lotteryCanvas');
       const ctx = canvas.getContext('2d');
       const input = document.getElementById('optionsInput');
       let options = [];
-      let balls = [], winnerBall = null, interval;
+      let balls = [], winnerBall = null, interval = null;
       let gravity = 0.2, friction = 0.985, releaseBall = false;
-      let particles = [], starTimer = 0;
+      let particles = [], starTimer = 0, timeoutHandle = null;
 
       function createBalls() {
         options = input.value.split(',').map(x => x.trim()).filter(Boolean);
@@ -238,10 +237,15 @@
       }
 
       function startDraw() {
+        if (interval) clearInterval(interval);
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+        winnerBall = null;
+        releaseBall = false;
+        particles = [];
+        starTimer = 0;
         createBalls();
-        clearInterval(interval);
         interval = setInterval(animate, 30);
-        setTimeout(() => {
+        timeoutHandle = setTimeout(() => {
           clearInterval(interval);
           const selected = Math.floor(Math.random() * balls.length);
           balls[selected].isWinner = true;
