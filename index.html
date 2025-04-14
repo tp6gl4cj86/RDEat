@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>聚餐開獎動畫</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      overflow: hidden;
+      font-family: sans-serif;
+      color: #fff;
+    }
+    #container {
+      position: relative;
+      width: 420px;
+      height: 420px;
+      border: 5px solid gold;
+      border-radius: 50%;
+      margin: 0 auto;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    canvas {
+      background-color: #111;
+      border-radius: 50%;
+    }
+    button {
+      display: block;
+      margin: 20px auto;
+      padding: 12px 24px;
+      font-size: 1em;
+      font-weight: bold;
+      background: #ffcc00;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1 style="text-align:center; color: gold;">🎱 聚餐開獎樂透球 🎱</h1>
+  <div id="container">
+    <canvas id="lotteryCanvas" width="400" height="400"></canvas>
+  </div>
+  <input id="optionsInput" type="text" value="馬辣, 鼎旺, 撈王, 東豐東" style="display: block; margin: 10px auto; padding: 10px; width: 300px; text-align: center; font-size: 1em; border-radius: 8px; border: none;" placeholder="輸入選項，用逗號分隔">
+  <button id="startButton">🎲 點我開獎！</button>
+
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      const canvas = document.getElementById('lotteryCanvas');
+      const ctx = canvas.getContext('2d');
+      const input = document.getElementById('optionsInput');
+      let options = [];
+      let balls = [], winnerBall = null, interval;
+      let gravity = 0.2, friction = 0.985, releaseBall = false;
+      let particles = [], starTimer = 0;
+
+      function createBalls() {
+        options = input.value.split(',').map(x => x.trim()).filter(Boolean);
+        balls = [];
+        for (let i = 0; i < 40; i++) {
+          balls.push({
+            x: Math.random() * 360 + 20,
+            y: Math.random() * 360 + 20,
+            vx: (Math.random() - 0.5) * 14,
+            vy: (Math.random() - 0.5) * 14,
+            r: 14,
+            label: options[Math.floor(Math.random() * options.length)],
+            isWinner: false,
+            popped: false,
+            preserved: false,
+            angle: 0,
+            rotationSpeed: (Math.random() - 0.5) * 0.1
+          });
+        }
+      }
+
+      function drawBalls() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(200, 200, 200, 0, Math.PI * 2);
+        ctx.clip();
+
+        for (let ball of balls) {
+          if (ball.isWinner || (ball.popped && !ball.preserved)) continue;
+          ball.angle += ball.rotationSpeed;
+          ctx.save();
+          ctx.translate(ball.x, ball.y);
+          ctx.rotate(ball.angle);
+          ctx.beginPath();
+          ctx.arc(0, 0, ball.r, 0, Math.PI * 2);
+          ctx.fillStyle = 'gold';
+          ctx.fill();
+          ctx.fillStyle = 'black';
+          ctx.font = `bold ${Math.min(ball.r * 0.8, ball.r)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(ball.label, 0, 0);
+          ctx.restore();
+        }
+
+        if (winnerBall) {
+          winnerBall.angle += winnerBall.rotationSpeed;
+          ctx.save();
+          ctx.translate(winnerBall.x, winnerBall.y);
+          ctx.rotate(winnerBall.angle);
+
+          for (let i = 0; i < 6; i++) {
+            const radius = winnerBall.r + 10 + Math.sin(Date.now() / 150 + i) * 4;
+            ctx.beginPath();
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(255, 255, 150, 0.1)`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
+
+          ctx.beginPath();
+          ctx.arc(0, 0, winnerBall.r, 0, Math.PI * 2);
+          ctx.fillStyle = 'white';
+          ctx.fill();
+
+          ctx.fillStyle = 'black';
+          ctx.font = `bold ${Math.min(winnerBall.r * 0.8, winnerBall.r)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(winnerBall.label, 0, 0);
+          ctx.restore();
+
+          for (let i = 0; i < 20; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const distance = winnerBall.r + 10 + Math.random() * 10;
+            particles.push({
+              x: winnerBall.x + Math.cos(angle) * distance,
+              y: winnerBall.y + Math.sin(angle) * distance,
+              dx: Math.cos(angle) * (Math.random() * 2),
+              dy: Math.sin(angle) * (Math.random() * 2),
+              radius: Math.random() * 2 + 1,
+              life: 60
+            });
+          }
+
+          particles = particles.filter(p => p.life-- > 0);
+          for (let p of particles) {
+            ctx.fillStyle = `rgba(${100 + Math.random()*155}, ${100 + Math.random()*155}, ${100 + Math.random()*155}, ${p.life / 60})`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+            ctx.fill();
+            p.x += p.dx;
+            p.y += p.dy;
+          }
+
+          if (++starTimer % 10 === 0) {
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            const starX = winnerBall.x + (Math.random() - 0.5) * 100;
+            const starY = winnerBall.y + (Math.random() - 0.5) * 100;
+            ctx.arc(starX, starY, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        ctx.restore();
+      }
+
+      function updatePhysics() {
+        for (let i = 0; i < balls.length; i++) {
+          let b = balls[i];
+          if (b.popped && !b.preserved) continue;
+          b.vy += gravity;
+          b.vx *= friction;
+          b.vy *= friction;
+          b.x += b.vx;
+          b.y += b.vy;
+
+          const dx = b.x - 200, dy = b.y - 200, dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist + b.r > 200) {
+            const angle = Math.atan2(dy, dx);
+            const tx = 200 + Math.cos(angle) * (200 - b.r);
+            const ty = 200 + Math.sin(angle) * (200 - b.r);
+            b.vx += (tx - b.x) * 0.6;
+            b.vy += (ty - b.y) * 0.6;
+          }
+
+          for (let j = i + 1; j < balls.length; j++) {
+            let b2 = balls[j];
+            if (b.isWinner || b2.isWinner) continue;
+            let dx = b2.x - b.x, dy = b2.y - b.y;
+            let dist = Math.hypot(dx, dy);
+            if (dist < b.r + b2.r) {
+              let angle = Math.atan2(dy, dx);
+              let overlap = b.r + b2.r - dist;
+              let ax = Math.cos(angle) * overlap / 2, ay = Math.sin(angle) * overlap / 2;
+              b.x -= ax; b.y -= ay; b2.x += ax; b2.y += ay;
+              let vxTotal = b.vx - b2.vx, vyTotal = b.vy - b2.vy;
+              b.vx = b2.vx; b.vy = b2.vy;
+              b2.vx = vxTotal + b.vx; b2.vy = vyTotal + b.vy;
+            }
+          }
+
+          if (b.isWinner && releaseBall) {
+            if (b.r < 200) {
+              b.r += 1.5;
+              b.x += 1.5;
+              b.y += 4 + Math.sin(Date.now() / 150) * 1.5;
+            } else if (!b.preserved) {
+              b.r = 200;
+              b.popped = true;
+              b.preserved = true;
+            }
+          }
+        }
+      }
+
+      function animate() {
+        updatePhysics();
+        drawBalls();
+      }
+
+      function startDraw() {
+        createBalls();
+        clearInterval(interval);
+        interval = setInterval(animate, 30);
+        setTimeout(() => {
+          clearInterval(interval);
+          const selected = Math.floor(Math.random() * balls.length);
+          balls[selected].isWinner = true;
+          winnerBall = balls[selected];
+          releaseBall = true;
+          interval = setInterval(animate, 30);
+        }, 3000);
+      }
+
+      document.getElementById("startButton").addEventListener("click", startDraw);
+    });
+  </script>
+</body>
+</html>
