@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <title>聚餐命運抽卡 · 爆炸特效版</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #fff;
+      background: radial-gradient(circle at 10% 0%, #050816 0%, #020010 45%, #000 100%);
+    }
+    canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      background: radial-gradient(circle at 50% 0%, #05091b 0%, #020010 50%, #000 100%);
+      z-index: 1;
+    }
+    h1 {
+      position: fixed;
+      z-index: 10;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      margin: 0;
+      padding: 4px 16px;
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      color: #d3e4ff;
+      text-shadow: 0 0 18px rgba(120, 190, 255, 0.9), 0 0 42px rgba(150, 120, 255, 0.9);
+      background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.7), transparent 70%);
+      border-radius: 999px;
+    }
+    .controls {
+      position: fixed;
+      z-index: 10;
+      left: 50%;
+      bottom: 32px;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 420px;
+      padding: 0 16px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+    }
+    .controls input {
+      width: 100%;
+      padding: 10px 16px;
+      border-radius: 999px;
+      border: none;
+      outline: none;
+      font-size: 0.95rem;
+      background: rgba(3, 6, 26, 0.9);
+      color: #fff;
+      box-shadow: 0 0 18px rgba(0, 0, 0, 0.9);
+      backdrop-filter: blur(16px);
+    }
+    .controls input::placeholder {
+      color: rgba(200, 210, 255, 0.55);
+    }
+    .controls button {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #050816;
+      background: linear-gradient(135deg, #ffe45e, #ff9ff3, #6bc4ff, #a78bfa);
+      background-size: 260% 260%;
+      box-shadow: 
+        0 0 22px rgba(255, 240, 180, 0.95), 
+        0 0 52px rgba(120, 200, 255, 0.9),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      animation: buttonGlow 4s ease-in-out infinite;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+    .controls button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+      transition: left 0.5s ease;
+    }
+    .controls button:hover::before {
+      left: 100%;
+    }
+    .controls button:hover {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 
+        0 0 30px rgba(255, 240, 180, 1), 
+        0 0 70px rgba(120, 200, 255, 1),
+        0 8px 25px rgba(0, 0, 0, 0.3);
+    }
+    .controls button:active {
+      transform: translateY(1px) scale(0.98);
+      box-shadow: 
+        0 0 15px rgba(255, 240, 180, 0.9),
+        0 0 35px rgba(120, 200, 255, 0.8);
+    }
+    .controls button.rolling {
+      animation: buttonPulse 0.5s ease-in-out infinite alternate;
+    }
+    .message {
+      min-height: 1.4em;
+      font-size: 0.9rem;
+      text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
+    }
+    @keyframes buttonGlow {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    @keyframes buttonPulse {
+      0% { 
+        transform: scale(1);
+        box-shadow: 
+          0 0 30px rgba(255, 240, 180, 1), 
+          0 0 70px rgba(120, 200, 255, 1);
+      }
+      100% { 
+        transform: scale(1.05);
+        box-shadow: 
+          0 0 50px rgba(255, 240, 180, 1.2), 
+          0 0 100px rgba(120, 200, 255, 1.2);
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>✨ 聚餐命運抽卡 ✨</h1>
+  <canvas id="fxCanvas"></canvas>
+  <div class="controls">
+    <input id="optionsInput" type="text" value="鼎旺, 金蓬萊, 驥園, URBAN, 享鴨, NAGOMI" placeholder="輸入選項，用逗號分隔" />
+    <button id="startButton">🃏 抽出今晚命運之卡！</button>
+    <div id="message" class="message"></div>
+  </div>
+
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      const canvas = document.getElementById('fxCanvas');
+      const ctx = canvas.getContext('2d');
+      const input = document.getElementById('optionsInput');
+      const btn = document.getElementById('startButton');
+      const msg = document.getElementById('message');
+
+      function initFromUrl() {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const keyParam = params.get('key');
+          if (keyParam) {
+            input.value = keyParam;
+          }
+        } catch (e) {}
+      }
+
+      let width = window.innerWidth;
+      let height = window.innerHeight;
+
+      function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      window.addEventListener('resize', resize);
+      resize();
+
+      let options = [];
+      let state = 'idle';
+      let finalLabel = '';
+      let rollStart = 0;
+      const SCATTER_DURATION = 2000;
+      const REVEAL_DURATION = 1000;
+      const ROLL_DURATION = SCATTER_DURATION + REVEAL_DURATION;
+
+      const floatingCards = [];
+      const confetti = [];
+      const sparks = [];
+      const stars = [];
+      const orbs = [];
+      const lightnings = [];
+      const magicCircles = [];
+      const rainbowParticles = [];
+      const shockWaves = [];
+      const auroras = [];
+
+      let winnerCard = null;
+      let celebrateStart = 0;
+      let winnerOrigin = null;
+      let screenShake = { x: 0, y: 0, intensity: 0 };
+      let timeWarp = 1;
+
+
+      function parseOptions() {
+        options = input.value
+          .split(',')
+          .map(x => x.trim())
+          .filter(Boolean);
+      }
+
+      function seedBackground() {
+        stars.length = 0;
+        orbs.length = 0;
+
+        const starCount = 160;
+        for (let i = 0; i < starCount; i++) {
+          stars.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            z: 0.3 + Math.random() * 1.2,
+            radius: 0.6 + Math.random() * 1.4,
+            twinkle: Math.random() * Math.PI * 2
+          });
+        }
+
+        const orbCount = 28;
+        for (let i = 0; i < orbCount; i++) {
+          orbs.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            baseR: 18 + Math.random() * 40,
+            phase: Math.random() * Math.PI * 2,
+            speed: 0.2 + Math.random() * 0.4,
+            depth: 0.5 + Math.random() * 1.4
+          });
+        }
+      }
+
+      function seedFloatingCards() {
+        floatingCards.length = 0;
+        winnerCard = null;
+        if (!options.length) return;
+
+        const maxCards = 70;
+        const minPerOption = 3;
+        let perOption = Math.floor(maxCards / options.length);
+        if (perOption < minPerOption) perOption = minPerOption;
+
+        const maxRadius = Math.min(width, height) * 0.95;
+
+        for (let optIndex = 0; optIndex < options.length; optIndex++) {
+          for (let j = 0; j < perOption; j++) {
+            const radius = 120 + Math.random() * maxRadius;
+            const angle = Math.random() * Math.PI * 2;
+            const depth = 0.45 + Math.random() * 1.1;
+
+            floatingCards.push({
+              optionIndex: optIndex,
+              label: options[optIndex],
+              radius,
+              angle,
+              depth,
+              speed: (Math.random() * 0.5 + 0.15) * (Math.random() < 0.5 ? 1 : -1),
+              wobbleAmp: 10 + Math.random() * 24,
+              wobblePhase: Math.random() * Math.PI * 2,
+              size: 18 + Math.random() * 16,
+              hue: 180 + Math.random() * 120,
+              seed: Math.random() * 1000,
+              flipPhase: Math.random() * Math.PI * 2,
+              flipSpeed: 0.6 + Math.random() * 0.9,
+              appearing: true,
+              birthTime: performance.now(),
+              lastX: null,
+              lastY: null
+            });
+          }
+        }
+      }
+
+      input.addEventListener('input', () => {
+        if (state !== 'idle' && state !== 'celebrate') return;
+
+        parseOptions();
+        const newCount = options.length;
+        msg.textContent = '';
+
+        if (!newCount) return;
+
+        if (floatingCards.length === 0) {
+          seedFloatingCards();
+        }
+
+        const totalCards = floatingCards.length;
+        const perOption = Math.floor(totalCards / newCount);
+        const extra = totalCards % newCount;
+
+        const sorted = floatingCards.slice().sort((a, b) => a.seed - b.seed);
+        let idx = 0;
+        for (let optIndex = 0; optIndex < newCount; optIndex++) {
+          const targetCount = perOption + (optIndex < extra ? 1 : 0);
+          for (let k = 0; k < targetCount && idx < sorted.length; k++, idx++) {
+            const card = sorted[idx];
+            card.optionIndex = optIndex;
+          }
+        }
+
+        for (const card of floatingCards) {
+          card.label = options[card.optionIndex];
+        }
+
+        if (state === 'celebrate') {
+          state = 'idle';
+          winnerCard = null;
+          winnerOrigin = null;
+        }
+      });
+
+      function createConfettiBurst() {
+        confetti.length = 0;
+        const count = 320;
+        for (let i = 0; i < count; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 5 + Math.random() * 7;
+          confetti.push({
+            x: width / 2,
+            y: height / 2,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: 4 + Math.random() * 6,
+            color: `hsl(${Math.random() * 360}, 95%, 60%)`,
+            rotation: Math.random() * Math.PI * 2,
+            vr: (Math.random() - 0.5) * 0.6,
+            life: 1.2 + Math.random() * 0.8
+          });
+        }
+      }
+
+      function createSparksBurst() {
+        sparks.length = 0;
+        const count = 260;
+        for (let i = 0; i < count; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 9 + Math.random() * 12;
+          sparks.push({
+            x: width / 2,
+            y: height / 2,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 0.4 + Math.random() * 0.5,
+            age: 0,
+            width: 1 + Math.random() * 1.8,
+            hue: 40 + Math.random() * 60
+          });
+        }
+      }
+
+      function createLightningBurst() {
+        lightnings.length = 0;
+        const count = 12;
+        for (let i = 0; i < count; i++) {
+          const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
+          const segments = [];
+          const segmentCount = 8 + Math.floor(Math.random() * 6);
+          let x = width / 2;
+          let y = height / 2;
+          
+          for (let j = 0; j < segmentCount; j++) {
+            const length = 40 + Math.random() * 80;
+            const deviation = (Math.random() - 0.5) * 0.8;
+            const segAngle = angle + deviation;
+            const nextX = x + Math.cos(segAngle) * length;
+            const nextY = y + Math.sin(segAngle) * length;
+            segments.push({ x1: x, y1: y, x2: nextX, y2: nextY });
+            x = nextX;
+            y = nextY;
+          }
+          
+          lightnings.push({
+            segments,
+            life: 0.3 + Math.random() * 0.2,
+            age: 0,
+            width: 2 + Math.random() * 3,
+            hue: 200 + Math.random() * 100,
+            flicker: Math.random() * Math.PI * 2
+          });
+        }
+      }
+
+      function createMagicCircles() {
+        magicCircles.length = 0;
+        const circles = [
+          { radius: 80, speed: 0.02, direction: 1, symbols: 8 },
+          { radius: 140, speed: 0.015, direction: -1, symbols: 12 },
+          { radius: 220, speed: 0.01, direction: 1, symbols: 16 }
+        ];
+        
+        circles.forEach((circle, index) => {
+          magicCircles.push({
+            radius: circle.radius,
+            speed: circle.speed,
+            direction: circle.direction,
+            symbols: circle.symbols,
+            rotation: 0,
+            life: 3 + Math.random(),
+            age: 0,
+            layer: index,
+            opacity: 0.8 - index * 0.2
+          });
+        });
+      }
+
+      function createRainbowParticles() {
+        rainbowParticles.length = 0;
+        const count = 150;
+        for (let i = 0; i < count; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 3 + Math.random() * 8;
+          const distance = Math.random() * 100;
+          
+          rainbowParticles.push({
+            x: width / 2 + Math.cos(angle) * distance,
+            y: height / 2 + Math.sin(angle) * distance,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: 2 + Math.random() * 4,
+            hue: Math.random() * 360,
+            saturation: 80 + Math.random() * 20,
+            lightness: 50 + Math.random() * 30,
+            life: 1.5 + Math.random() * 1,
+            age: 0,
+            trail: []
+          });
+        }
+      }
+
+      function createShockWaves() {
+        shockWaves.length = 0;
+        const count = 5;
+        const fullSpan = Math.hypot(width, height); // 以對角線確保覆蓋全螢幕
+        for (let i = 0; i < count; i++) {
+          shockWaves.push({
+            x: width / 2,
+            y: height / 2,
+            radius: 0,
+            maxRadius: fullSpan * (0.75 + i * 0.15),
+            speed: 10 + i * 2.5,
+            width: Math.max(2, 6 - i),
+            life: 2.6 + i * 0.35,
+            age: 0,
+            delay: i * 0.08
+          });
+        }
+      }
+
+      function createAuroras() {
+        auroras.length = 0;
+        const count = 6;
+        for (let i = 0; i < count; i++) {
+          const points = [];
+          const pointCount = 21; // 增加一個點來確保覆蓋整個寬度
+          for (let j = 0; j < pointCount; j++) {
+            points.push({
+              x: (width / (pointCount - 1)) * j, // 使用 pointCount - 1 來確保最後一個點在 width 位置
+              y: height * 0.3 + Math.sin(j * 0.5) * 100,
+              baseY: height * 0.3 + Math.sin(j * 0.5) * 100
+            });
+          }
+          
+          auroras.push({
+            points,
+            hue: i * 60,
+            life: 4 + Math.random() * 2,
+            age: 0,
+            wave: Math.random() * Math.PI * 2,
+            amplitude: 50 + Math.random() * 50
+          });
+        }
+      }
+
+      function startDraw() {
+        if (state === 'rolling') return;
+        parseOptions();
+        if (!options.length) {
+          msg.textContent = '請先輸入至少一個選項喔！';
+          return;
+        }
+        
+        state = 'rolling';
+        btn.classList.add('rolling');
+        btn.textContent = '🌟 命運之輪轉動中... 🌟';
+        msg.textContent = '';
+        rollStart = performance.now();
+        finalLabel = '';
+        winnerCard = null;
+        celebrateStart = 0;
+        winnerOrigin = null;
+        confetti.length = 0;
+        sparks.length = 0;
+        lightnings.length = 0;
+        magicCircles.length = 0;
+        rainbowParticles.length = 0;
+        shockWaves.length = 0;
+        auroras.length = 0;
+        screenShake = { x: 0, y: 0, intensity: 0 };
+        timeWarp = 1;
+      }
+
+      btn.addEventListener('click', startDraw);
+
+      initFromUrl();
+      parseOptions();
+      seedBackground();
+      seedFloatingCards();
+
+      let lastTime = performance.now();
+
+      function drawBackground(time) {
+        const centerX = width / 2;
+        const centerY = height / 2;
+
+        const t = time * 0.00015;
+        const h1 = 225 + 10 * Math.sin(t * 1.3);
+        const h2 = 260 + 18 * Math.cos(t * 0.9);
+        const h3 = 285 + 14 * Math.sin(t * 1.7);
+        const grd = ctx.createRadialGradient(
+          centerX,
+          centerY * 0.35,
+          0,
+          centerX,
+          centerY * 1.25,
+          Math.max(width, height)
+        );
+        grd.addColorStop(0, `hsl(${h1}, 68%, 26%)`);
+        grd.addColorStop(0.35, `hsl(${h2}, 74%, 14%)`);
+        grd.addColorStop(0.75, `hsl(${h3}, 86%, 10%)`);
+        grd.addColorStop(1, '#000');
+        ctx.fillStyle = grd;
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+        for (const s of stars) {
+          const tw = 0.5 + 0.5 * Math.sin(time * 0.0025 + s.twinkle);
+          const driftX = Math.cos(time * 0.00018 + s.twinkle) * s.z * 18;
+          const driftY = Math.sin(time * 0.00016 + s.twinkle * 1.3) * s.z * 12;
+          const sx = s.x + driftX;
+          const sy = s.y + driftY;
+          const depthBoost = Math.pow(s.z, 1.3);
+          const alpha = (0.12 + 0.5 * tw) * depthBoost;
+          const r = s.radius * depthBoost * (0.8 + tw * 0.8);
+          ctx.fillStyle = `rgba(${130 + tw * 90}, ${160 + tw * 70}, 255, ${alpha})`;
+          ctx.beginPath();
+          ctx.arc(sx, sy, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        for (const o of orbs) {
+          const tOrb = time * 0.0008 * o.speed + o.phase;
+          const y = o.y + Math.sin(tOrb) * 52 * o.depth;
+          const x = o.x + Math.cos(tOrb * 0.85) * 78 * (o.depth - 0.4);
+          const r = o.baseR * (1.2 + 0.8 * o.depth);
+          const alphaBase = 0.18 + 0.22 * o.depth;
+
+          const orbGrad = ctx.createRadialGradient(x, y, 0, x, y, r);
+          orbGrad.addColorStop(0, `rgba(180, 220, 255, ${alphaBase * 0.7})`);
+          orbGrad.addColorStop(0.3, `rgba(120, 190, 255, ${alphaBase * 0.5})`);
+          orbGrad.addColorStop(0.65, `rgba(70, 130, 220, ${alphaBase * 0.25})`);
+          orbGrad.addColorStop(0.9, `rgba(20, 40, 120, ${alphaBase * 0.1})`);
+          orbGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+          ctx.fillStyle = orbGrad;
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.restore();
+
+        const isRollingBg = state === 'rolling';
+        const diagRadius = Math.hypot(width, height) * 0.65; // 抽獎時延展至超出螢幕邊界
+        const baseMinR = Math.min(width, height) * 0.12;
+        const baseMaxR = isRollingBg ? diagRadius : Math.min(width, height) * 0.6;
+        const ringCount = isRollingBg ? 10 : 5;
+        const speedBase = 0.00025 * (isRollingBg ? 4 : 1);
+
+        for (let i = 0; i < ringCount; i++) {
+          let inward;
+          if (isRollingBg) {
+            const phase = (time * speedBase + i * 0.15) % 1;
+            inward = 1 - phase;
+          } else {
+            const baseInward = 0.2 + 0.6 * (i / Math.max(1, ringCount - 1));
+            const wave = Math.sin(time * 0.001 + i * 0.7) * 0.18;
+            inward = Math.max(0, Math.min(1, baseInward + wave));
+          }
+
+          const r = baseMinR + (baseMaxR - baseMinR) * inward;
+          const alphaBase = isRollingBg
+            ? 0.12 + 0.28 * inward
+            : 0.08 + 0.2 * inward;
+          const alphaBoost = isRollingBg ? 0.25 * inward : 0;
+          const alpha = Math.max(alphaBase + alphaBoost, 0);
+
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(120, 180, 255, ${alpha})`;
+          const dynamicWidth = isRollingBg
+            ? 1 + 2 * inward + 5 * (1 - inward)
+            : 1.5 + 3.5 * inward + 0.8 * inward;
+          ctx.lineWidth = dynamicWidth;
+          ctx.stroke();
+        }
+
+        if (isRollingBg) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'screen';
+          const beamCount = 24;
+          const maxR = baseMaxR * 1.05;
+          for (let i = 0; i < beamCount; i++) {
+            const angle = (i / beamCount) * Math.PI * 2 + time * 0.0015;
+            const inner = baseMinR * 0.5;
+            const outer = maxR;
+            const widthBeam = 0.02 + 0.015 * Math.sin(time * 0.002 + i);
+            const spread = Math.PI * widthBeam;
+
+            const grad = ctx.createRadialGradient(centerX, centerY, inner, centerX, centerY, outer);
+            grad.addColorStop(0, 'rgba(255,255,255,0.25)');
+            grad.addColorStop(0.3, 'rgba(160,200,255,0.18)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, outer, angle - spread, angle + spread);
+            ctx.closePath();
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+      }
+
+      function drawTarotFrame(w, h, hue) {
+        const grd = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+        grd.addColorStop(0, `hsl(${hue}, 80%, 72%)`);
+        grd.addColorStop(0.4, `hsl(${(hue + 40) % 360}, 80%, 60%)`);
+        grd.addColorStop(1, `hsl(${(hue + 80) % 360}, 78%, 52%)`);
+        ctx.fillStyle = grd;
+        ctx.strokeStyle = 'rgba(220,230,255,0.98)';
+        ctx.lineWidth = 2;
+
+        const r = Math.min(w, h) * 0.16;
+        ctx.beginPath();
+        ctx.moveTo(-w / 2 + r, -h / 2);
+        ctx.lineTo(w / 2 - r, -h / 2);
+        ctx.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r);
+        ctx.lineTo(w / 2, h / 2 - r);
+        ctx.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2);
+        ctx.lineTo(-w / 2 + r, h / 2);
+        ctx.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r);
+        ctx.lineTo(-w / 2, -h / 2 + r);
+        ctx.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        const inset = 8;
+        const rInner = Math.min(w, h) * 0.14;
+        const ix1 = -w / 2 + inset;
+        const iy1 = -h / 2 + inset;
+        const ix2 = w / 2 - inset;
+        const iy2 = h / 2 - inset;
+        ctx.beginPath();
+        ctx.moveTo(ix1 + rInner, iy1);
+        ctx.lineTo(ix2 - rInner, iy1);
+        ctx.quadraticCurveTo(ix2, iy1, ix2, iy1 + rInner);
+        ctx.lineTo(ix2, iy2 - rInner);
+        ctx.quadraticCurveTo(ix2, iy2, ix2 - rInner, iy2);
+        ctx.lineTo(ix1 + rInner, iy2);
+        ctx.quadraticCurveTo(ix1, iy2, ix1, iy2 - rInner);
+        ctx.lineTo(ix1, iy1 + rInner);
+        ctx.quadraticCurveTo(ix1, iy1, ix1 + rInner, iy1);
+        ctx.closePath();
+        const inner = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+        inner.addColorStop(0, 'rgba(245,250,255,0.96)');
+        inner.addColorStop(0.5, 'rgba(232,238,255,0.98)');
+        inner.addColorStop(1, 'rgba(225,236,255,0.96)');
+        ctx.fillStyle = inner;
+        ctx.fill();
+      }
+
+      function drawFloatingCards(time) {
+        if (!floatingCards.length) return;
+        const centerX = width / 2;
+        const centerY = height / 2;
+
+        const isRolling = state === 'rolling';
+        const elapsedRolling = isRolling ? (time - rollStart) : 0;
+        const scatterPhase = isRolling ? Math.min(elapsedRolling / SCATTER_DURATION, 1) : 0;
+
+        floatingCards.sort((a, b) => a.depth - b.depth);
+
+        for (const card of floatingCards) {
+          if (card === winnerCard && state === 'celebrate') continue;
+
+          const baseWobble = 1.15 + card.depth * 0.25;
+          let speedFactor = 1;
+          let wobbleFactor = baseWobble;
+          let radiusJitter = 12;
+          let swirlExtra = 0.01 * (card.radius / (Math.min(width, height) * 0.95));
+
+          if (isRolling) {
+            const pull = scatterPhase;
+            speedFactor = 1 + 6.2 * pull;
+            wobbleFactor = baseWobble + 3.2 * pull;
+            radiusJitter = 120 * pull * pull;
+            swirlExtra = 0.09 * pull * (card.radius / (Math.min(width, height) * 0.95));
+          }
+
+          card.angle += card.speed * 0.002 * speedFactor + swirlExtra;
+          const wobble = Math.sin(time * 0.0025 + card.wobblePhase) * card.wobbleAmp * wobbleFactor;
+          const breathe = 1 + 0.06 * Math.sin(time * 0.0012 + card.seed);
+
+          let dynBase;
+          if (isRolling) {
+            const pull = scatterPhase;
+            const easedPull = 1 - Math.pow(1 - pull, 2);
+            const baseRadius = card.radius * card.depth;
+            const clusterMin = Math.min(width, height) * (0.08 + 0.04 * card.depth);
+            const clusterRadius = clusterMin;
+            const mixedRadius = baseRadius * (1 - easedPull) + clusterRadius * easedPull;
+            dynBase = mixedRadius * breathe +
+                      Math.sin(time * 0.0045 + card.wobblePhase) * radiusJitter * (1 - easedPull * 0.6);
+          } else {
+            const baseRadius = card.radius * card.depth * breathe;
+            dynBase = baseRadius + Math.sin(time * 0.0045 + card.wobblePhase) * radiusJitter * card.depth;
+          }
+
+          let x = centerX + Math.cos(card.angle) * dynBase;
+          let y = centerY + Math.sin(card.angle) * dynBase * 0.5 + wobble;
+
+          card.lastX = x;
+          card.lastY = y;
+
+          const depthScale = 0.6 + card.depth * 0.7;
+          const w = card.size * 2.4 * depthScale;
+          const h = card.size * 1.5 * depthScale;
+
+          ctx.save();
+          ctx.translate(x, y);
+          const flipT = Math.sin(time * 0.0018 * card.flipSpeed + card.flipPhase);
+          const flipScaleY = 0.9 + 0.18 * flipT;
+          ctx.scale(1, flipScaleY);
+          ctx.rotate(Math.sin(time * 0.0012 + card.angle + card.seed) * (isRolling ? 1.0 : 0.55));
+
+          const shadowOffset = 10 * card.depth;
+          const shadowR = Math.max(w, h) * 0.55;
+          const shadowGrad = ctx.createRadialGradient(0, shadowOffset, 0, 0, shadowOffset, shadowR);
+          shadowGrad.addColorStop(0, 'rgba(0, 0, 0, 0.4)');
+          shadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          ctx.save();
+          ctx.translate(0, 6 * card.depth);
+          ctx.fillStyle = shadowGrad;
+          ctx.beginPath();
+          ctx.arc(0, 0, shadowR, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+
+          let alpha = 0.75 + card.depth * 0.25;
+          if (card.appearing) {
+            const tIn = Math.min((time - (card.birthTime || 0)) / 600, 1);
+            if (tIn >= 1) {
+              card.appearing = false;
+            }
+            alpha *= Math.max(tIn, 0);
+          }
+          ctx.globalAlpha = alpha;
+          drawTarotFrame(w, h, card.hue);
+
+          const label = card.label || '';
+          ctx.fillStyle = '#161524';
+          ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+          ctx.lineWidth = 1.4;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          const maxWidth = w - 30;
+          let fontSize = 14 * depthScale;
+          ctx.font = `600 ${fontSize}px system-ui`;
+          while (ctx.measureText(label).width > maxWidth && fontSize > 8) {
+            fontSize -= 1;
+            ctx.font = `600 ${fontSize}px system-ui`;
+          }
+          ctx.strokeText(label, 0, 0);
+          ctx.fillText(label, 0, 0);
+
+          ctx.restore();
+        }
+
+        if (winnerCard && state === 'celebrate') {
+          const card = winnerCard;
+          const centerX2 = width / 2;
+          const centerY2 = height / 2;
+
+          ctx.save();
+          const startX = winnerOrigin && typeof winnerOrigin.x === 'number' ? winnerOrigin.x : centerX2;
+          const startY = winnerOrigin && typeof winnerOrigin.y === 'number' ? winnerOrigin.y : centerY2;
+          const elapsedCelebrate = time - celebrateStart;
+          const travelT = Math.min(elapsedCelebrate / 450, 1);
+          const px = startX + (centerX2 - startX) * travelT;
+          const py = startY + (centerY2 - startY) * travelT;
+
+          ctx.translate(px, py);
+
+          const appearT = Math.min(elapsedCelebrate / 650, 1);
+          const easeAppear = 1 - Math.pow(1 - appearT, 3);
+          const explodeT = Math.min(elapsedCelebrate / 900, 1);
+          const baseScale = 0.35 + 2.3 * easeAppear;
+          const explodeBoost = 1 + 0.35 * Math.sin(explodeT * Math.PI);
+          const pulse = 1 + Math.sin(time * 0.003) * 0.22;
+          const scale = baseScale * explodeBoost * pulse;
+          ctx.scale(scale, scale);
+          ctx.rotate(Math.sin(time * 0.0018 + card.angle) * 0.65);
+
+          const haloR = Math.min(width, height) * 0.5;
+          const glowFade = 1 - Math.min(elapsedCelebrate / 3200, 1);
+
+          const fireR = haloR * 0.65;
+          const fire = ctx.createRadialGradient(0, 0, 0, 0, 0, fireR);
+          fire.addColorStop(0, `rgba(255,255,230,${0.95 * glowFade})`);
+          fire.addColorStop(0.25, `rgba(255,220,140,${0.9 * glowFade})`);
+          fire.addColorStop(0.55, `rgba(255,150,80,${0.78 * glowFade})`);
+          fire.addColorStop(0.9, `rgba(160,40,40,${0.35 * glowFade})`);
+          fire.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = fire;
+          ctx.beginPath();
+          ctx.arc(0, 0, fireR, 0, Math.PI * 2);
+          ctx.fill();
+
+          const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, haloR);
+          halo.addColorStop(0, `rgba(255,255,255,${0.99 * glowFade})`);
+          halo.addColorStop(0.3, `rgba(190,220,255,${0.96 * glowFade})`);
+          halo.addColorStop(0.7, `rgba(80,140,255,${0.7 * glowFade})`);
+          halo.addColorStop(1, 'rgba(5,0,20,0)');
+          ctx.fillStyle = halo;
+          ctx.beginPath();
+          ctx.arc(0, 0, haloR, 0, Math.PI * 2);
+          ctx.fill();
+
+          const shockT = Math.min(elapsedCelebrate / 900, 1);
+          const shockAlpha = 0.5 * (1 - shockT) * glowFade;
+          if (shockAlpha > 0.01) {
+            ctx.save();
+            ctx.globalAlpha = shockAlpha;
+            ctx.beginPath();
+            ctx.arc(0, 0, haloR * (0.35 + 0.55 * shockT), 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255,250,230,0.95)';
+            ctx.lineWidth = 3 + 6 * (1 - shockT);
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          const baseSize = card.size * 2.9;
+          const w = baseSize * 2.3;
+          const h = baseSize * 1.7;
+          drawTarotFrame(w, h, card.hue);
+
+          const label = card.label || '';
+          ctx.fillStyle = '#131221';
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 4;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          const maxWidth = w - 70;
+          let fontSize = 28;
+          ctx.font = `700 ${fontSize}px system-ui`;
+          while (ctx.measureText(label).width > maxWidth && fontSize > 14) {
+            fontSize -= 2;
+            ctx.font = `700 ${fontSize}px system-ui`;
+          }
+          ctx.strokeText(label, 0, 0);
+          ctx.fillText(label, 0, 0);
+
+          ctx.restore();
+        }
+      }
+
+      function updateConfetti(delta) {
+        for (const c of confetti) {
+          c.x += c.vx;
+          c.y += c.vy;
+          c.vy += 0.16;
+          c.vx *= 0.995;
+          c.rotation += c.vr;
+          c.life -= delta * 0.6;
+        }
+      }
+
+      function drawConfetti() {
+        ctx.save();
+        for (const c of confetti) {
+          if (c.life <= 0) continue;
+          ctx.save();
+          ctx.translate(c.x, c.y);
+          ctx.rotate(c.rotation);
+          ctx.globalAlpha = Math.max(0, c.life);
+          ctx.fillStyle = c.color;
+          ctx.fillRect(-c.size / 2, -c.size / 2, c.size, c.size * 0.6);
+          ctx.restore();
+        }
+        ctx.restore();
+      }
+
+      function updateSparks(delta) {
+        for (const s of sparks) {
+          s.x += s.vx;
+          s.y += s.vy;
+          s.vy += 20 * delta;
+          s.age += delta;
+        }
+      }
+
+      function drawSparks() {
+        ctx.save();
+        for (const s of sparks) {
+          if (s.age >= s.life) continue;
+          const t = s.age / s.life;
+          const alpha = 1 - t;
+          ctx.globalAlpha = alpha;
+          ctx.strokeStyle = `hsl(${s.hue}, 100%, ${60 + 20 * (1 - t)}%)`;
+          ctx.lineWidth = s.width;
+          ctx.beginPath();
+          ctx.moveTo(s.x, s.y);
+          ctx.lineTo(s.x - s.vx * 0.2, s.y - s.vy * 0.2);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      function updateLightnings(delta) {
+        for (const l of lightnings) {
+          l.age += delta;
+          l.flicker += delta * 20;
+        }
+      }
+
+      function drawLightnings() {
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        for (const l of lightnings) {
+          if (l.age >= l.life) continue;
+          const t = l.age / l.life;
+          const alpha = (1 - t) * (0.8 + 0.4 * Math.sin(l.flicker));
+          ctx.globalAlpha = alpha;
+          
+          // 主閃電
+          ctx.strokeStyle = `hsl(${l.hue}, 100%, 90%)`;
+          ctx.lineWidth = l.width;
+          ctx.beginPath();
+          for (const seg of l.segments) {
+            ctx.moveTo(seg.x1, seg.y1);
+            ctx.lineTo(seg.x2, seg.y2);
+          }
+          ctx.stroke();
+          
+          // 光暈效果
+          ctx.strokeStyle = `hsl(${l.hue}, 100%, 70%)`;
+          ctx.lineWidth = l.width * 3;
+          ctx.globalAlpha = alpha * 0.3;
+          ctx.beginPath();
+          for (const seg of l.segments) {
+            ctx.moveTo(seg.x1, seg.y1);
+            ctx.lineTo(seg.x2, seg.y2);
+          }
+          ctx.stroke();
+        }
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.restore();
+      }
+
+      function updateMagicCircles(delta, time) {
+        for (const mc of magicCircles) {
+          mc.age += delta;
+          mc.rotation += mc.speed * mc.direction * timeWarp;
+        }
+      }
+
+      function drawMagicCircles(time) {
+        ctx.save();
+        const centerX = width / 2;
+        const centerY = height / 2;
+        
+        for (const mc of magicCircles) {
+          if (mc.age >= mc.life) continue;
+          const t = mc.age / mc.life;
+          const alpha = mc.opacity * (1 - t) * (0.7 + 0.3 * Math.sin(time * 0.01));
+          
+          ctx.save();
+          ctx.translate(centerX, centerY);
+          ctx.rotate(mc.rotation);
+          ctx.globalAlpha = alpha;
+          
+          // 繪製魔法圓環
+          ctx.strokeStyle = `hsl(${280 + mc.layer * 30}, 80%, 70%)`;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(0, 0, mc.radius, 0, Math.PI * 2);
+          ctx.stroke();
+          
+          // 繪製符號
+          for (let i = 0; i < mc.symbols; i++) {
+            const angle = (Math.PI * 2 * i) / mc.symbols;
+            const x = Math.cos(angle) * mc.radius;
+            const y = Math.sin(angle) * mc.radius;
+            
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle + Math.PI / 2);
+            
+            // 繪製神秘符號
+            ctx.fillStyle = `hsl(${280 + mc.layer * 30}, 90%, 80%)`;
+            ctx.font = `${8 + mc.layer * 2}px serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const symbols = ['◆', '◇', '★', '☆', '◈', '◉', '◎', '○'];
+            ctx.fillText(symbols[i % symbols.length], 0, 0);
+            
+            ctx.restore();
+          }
+          
+          ctx.restore();
+        }
+        ctx.restore();
+      }
+
+      function updateRainbowParticles(delta) {
+        for (const p of rainbowParticles) {
+          p.age += delta;
+          p.x += p.vx * timeWarp;
+          p.y += p.vy * timeWarp;
+          p.vy += 2 * delta; // 重力
+          p.vx *= 0.998; // 阻力
+          
+          // 更新拖尾
+          p.trail.push({ x: p.x, y: p.y });
+          if (p.trail.length > 8) {
+            p.trail.shift();
+          }
+          
+          // 色彩變化
+          p.hue = (p.hue + 120 * delta) % 360;
+        }
+      }
+
+      function drawRainbowParticles() {
+        ctx.save();
+        for (const p of rainbowParticles) {
+          if (p.age >= p.life) continue;
+          const t = p.age / p.life;
+          const alpha = 1 - t;
+          
+          // 繪製拖尾
+          for (let i = 0; i < p.trail.length; i++) {
+            const trailAlpha = alpha * (i / p.trail.length) * 0.5;
+            ctx.globalAlpha = trailAlpha;
+            ctx.fillStyle = `hsl(${p.hue}, ${p.saturation}%, ${p.lightness}%)`;
+            ctx.beginPath();
+            ctx.arc(p.trail[i].x, p.trail[i].y, p.size * (i / p.trail.length), 0, Math.PI * 2);
+            ctx.fill();
+          }
+          
+          // 繪製主粒子
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = `hsl(${p.hue}, ${p.saturation}%, ${p.lightness}%)`;
+          ctx.shadowColor = `hsl(${p.hue}, 100%, 70%)`;
+          ctx.shadowBlur = 10;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+        ctx.restore();
+      }
+
+      function updateShockWaves(delta) {
+        for (const sw of shockWaves) {
+          if (sw.age < sw.delay) {
+            sw.age += delta;
+            continue;
+          }
+          sw.age += delta;
+          sw.radius += sw.speed * timeWarp;
+        }
+      }
+
+      function drawShockWaves() {
+        ctx.save();
+        for (const sw of shockWaves) {
+          if (sw.age < sw.delay || sw.age >= sw.life || sw.radius >= sw.maxRadius) continue;
+          
+          const t = (sw.age - sw.delay) / (sw.life - sw.delay);
+          const alpha = (1 - t) * 0.8;
+          const radiusProgress = sw.radius / sw.maxRadius;
+          
+          ctx.globalAlpha = alpha;
+          ctx.strokeStyle = `hsl(${200 + radiusProgress * 60}, 100%, ${70 + radiusProgress * 20}%)`;
+          ctx.lineWidth = sw.width * (1 - radiusProgress);
+          ctx.beginPath();
+          ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      function updateAuroras(delta, time) {
+        for (const aurora of auroras) {
+          aurora.age += delta;
+          aurora.wave += delta * 2;
+          
+          // 更新極光點位置
+          for (let i = 0; i < aurora.points.length; i++) {
+            const point = aurora.points[i];
+            point.y = point.baseY + Math.sin(aurora.wave + i * 0.3) * aurora.amplitude;
+          }
+        }
+      }
+
+      function drawAuroras() {
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        
+        for (const aurora of auroras) {
+          if (aurora.age >= aurora.life) continue;
+          
+          const t = aurora.age / aurora.life;
+          const alpha = (1 - t) * 0.4;
+          
+          // 創建漸層
+          const gradient = ctx.createLinearGradient(0, 0, 0, height);
+          gradient.addColorStop(0, `hsla(${aurora.hue}, 80%, 60%, 0)`);
+          gradient.addColorStop(0.3, `hsla(${aurora.hue}, 80%, 60%, ${alpha})`);
+          gradient.addColorStop(0.7, `hsla(${aurora.hue}, 80%, 60%, ${alpha * 0.5})`);
+          gradient.addColorStop(1, `hsla(${aurora.hue}, 80%, 60%, 0)`);
+          
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.moveTo(aurora.points[0].x, aurora.points[0].y);
+          
+          for (let i = 1; i < aurora.points.length; i++) {
+            ctx.lineTo(aurora.points[i].x, aurora.points[i].y);
+          }
+          
+          ctx.lineTo(width, height);
+          ctx.lineTo(0, height);
+          ctx.closePath();
+          ctx.fill();
+        }
+        
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.restore();
+      }
+
+      function animate(time) {
+        requestAnimationFrame(animate);
+        const delta = (time - lastTime) / 1000;
+        lastTime = time;
+
+        // 更新震動效果
+        if (screenShake.intensity > 0) {
+          screenShake.x = (Math.random() - 0.5) * screenShake.intensity;
+          screenShake.y = (Math.random() - 0.5) * screenShake.intensity;
+          screenShake.intensity *= 0.95; // 逐漸減弱
+          if (screenShake.intensity < 0.1) {
+            screenShake.intensity = 0;
+            screenShake.x = 0;
+            screenShake.y = 0;
+          }
+        }
+
+        // 應用震動偏移
+        ctx.save();
+        ctx.translate(screenShake.x, screenShake.y);
+
+        // 更新時間扭曲效果
+        if (state === 'rolling') {
+          const elapsed = time - rollStart;
+          const rollProgress = elapsed / ROLL_DURATION;
+          if (rollProgress > 0.7 && rollProgress < 0.9) {
+            timeWarp = 0.3; // 慢動作效果
+          } else {
+            timeWarp = 1;
+          }
+          
+        }
+
+        drawBackground(time);
+        drawAuroras();
+        drawFloatingCards(time);
+
+        if (state === 'rolling') {
+          const elapsed = time - rollStart;
+          if (elapsed >= ROLL_DURATION) {
+            if (!winnerCard) {
+              if (floatingCards.length) {
+                const idx = Math.floor(Math.random() * floatingCards.length);
+                winnerCard = floatingCards[idx];
+                finalLabel = winnerCard.label;
+                winnerOrigin = {
+                  x: typeof winnerCard.lastX === 'number' ? winnerCard.lastX : width / 2,
+                  y: typeof winnerCard.lastY === 'number' ? winnerCard.lastY : height / 2
+                };
+              } else if (options.length) {
+                finalLabel = options[Math.floor(Math.random() * options.length)];
+                winnerOrigin = { x: width / 2, y: height / 2 };
+              }
+            }
+            state = 'celebrate';
+            celebrateStart = time;
+            
+            // 重置按鈕狀態
+            btn.classList.remove('rolling');
+            btn.textContent = '🎊 再來一次！🎊';
+            
+            // 創建所有慶祝特效
+            createConfettiBurst();
+            createSparksBurst();
+            createLightningBurst();
+            createMagicCircles();
+            createRainbowParticles();
+            createShockWaves();
+            createAuroras();
+            
+            // 觸發震動效果
+            screenShake.intensity = 20;
+            
+            if (finalLabel) {
+              msg.textContent = `今晚吃：${finalLabel}`;
+            }
+          }
+        }
+
+        // 更新和繪製所有特效
+        if (confetti.length) {
+          updateConfetti(delta);
+          drawConfetti();
+        }
+        if (sparks.length) {
+          updateSparks(delta);
+          drawSparks();
+        }
+        if (lightnings.length) {
+          updateLightnings(delta);
+          drawLightnings();
+        }
+        if (magicCircles.length) {
+          updateMagicCircles(delta, time);
+          drawMagicCircles(time);
+        }
+        if (rainbowParticles.length) {
+          updateRainbowParticles(delta);
+          drawRainbowParticles();
+        }
+        if (shockWaves.length) {
+          updateShockWaves(delta);
+          drawShockWaves();
+        }
+        if (auroras.length) {
+          updateAuroras(delta, time);
+        }
+
+        ctx.restore(); // 恢復震動偏移
+      }
+
+      animate(performance.now());
+    });
+  </script>
+</body>
+</html>
