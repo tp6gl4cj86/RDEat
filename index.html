@@ -78,12 +78,43 @@
       color: #050816;
       background: linear-gradient(135deg, #ffe45e, #ff9ff3, #6bc4ff, #a78bfa);
       background-size: 260% 260%;
-      box-shadow: 0 0 22px rgba(255, 240, 180, 0.95), 0 0 52px rgba(120, 200, 255, 0.9);
+      box-shadow: 
+        0 0 22px rgba(255, 240, 180, 0.95), 
+        0 0 52px rgba(120, 200, 255, 0.9),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
       animation: buttonGlow 4s ease-in-out infinite;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+    .controls button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+      transition: left 0.5s ease;
+    }
+    .controls button:hover::before {
+      left: 100%;
+    }
+    .controls button:hover {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 
+        0 0 30px rgba(255, 240, 180, 1), 
+        0 0 70px rgba(120, 200, 255, 1),
+        0 8px 25px rgba(0, 0, 0, 0.3);
     }
     .controls button:active {
-      transform: translateY(1px) scale(0.99);
-      box-shadow: 0 0 12px rgba(255, 240, 180, 0.9);
+      transform: translateY(1px) scale(0.98);
+      box-shadow: 
+        0 0 15px rgba(255, 240, 180, 0.9),
+        0 0 35px rgba(120, 200, 255, 0.8);
+    }
+    .controls button.rolling {
+      animation: buttonPulse 0.5s ease-in-out infinite alternate;
     }
     .message {
       min-height: 1.4em;
@@ -94,6 +125,20 @@
       0% { background-position: 0% 50%; }
       50% { background-position: 100% 50%; }
       100% { background-position: 0% 50%; }
+    }
+    @keyframes buttonPulse {
+      0% { 
+        transform: scale(1);
+        box-shadow: 
+          0 0 30px rgba(255, 240, 180, 1), 
+          0 0 70px rgba(120, 200, 255, 1);
+      }
+      100% { 
+        transform: scale(1.05);
+        box-shadow: 
+          0 0 50px rgba(255, 240, 180, 1.2), 
+          0 0 100px rgba(120, 200, 255, 1.2);
+      }
     }
   </style>
 </head>
@@ -142,7 +187,7 @@
       let state = 'idle';
       let finalLabel = '';
       let rollStart = 0;
-      const SCATTER_DURATION = 2000;
+      const SCATTER_DURATION = 1500;
       const REVEAL_DURATION = 1000;
       const ROLL_DURATION = SCATTER_DURATION + REVEAL_DURATION;
 
@@ -151,10 +196,20 @@
       const sparks = [];
       const stars = [];
       const orbs = [];
+      const lightnings = [];
+      const magicCircles = [];
+      const rainbowParticles = [];
+      const shockWaves = [];
+      const auroras = [];
+      const asteroidFragments = [];
 
       let winnerCard = null;
       let celebrateStart = 0;
       let winnerOrigin = null;
+      let screenShake = { x: 0, y: 0, intensity: 0 };
+      let timeWarp = 1;
+      let peripheralBlur = 0;
+
 
       function parseOptions() {
         options = input.value
@@ -166,6 +221,7 @@
       function seedBackground() {
         stars.length = 0;
         orbs.length = 0;
+        asteroidFragments.length = 0;
 
         const starCount = 160;
         for (let i = 0; i < starCount; i++) {
@@ -189,6 +245,125 @@
             depth: 0.5 + Math.random() * 1.4
           });
         }
+
+        const rockCount = 90 + Math.floor(Math.min(width, height) / 18);
+        for (let i = 0; i < rockCount; i++) {
+          const depth = 0.35 + Math.random() * 1.25;
+          const baseSize = 3 + Math.random() * 9;
+          const pointCount = 6 + Math.floor(Math.random() * 4);
+          const radii = Array.from({ length: pointCount }, () => 0.5 + Math.random() * 0.7);
+          const direction = Math.random() < 0.5 ? -1 : 1;
+          const speed = (10 + Math.random() * 24) * (0.4 + depth * 0.8);
+          const baseVy = (Math.random() * 16 - 8) * (0.25 + depth * 0.35);
+          const baseVx = direction * speed;
+
+          asteroidFragments.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            vx: baseVx,
+            vy: baseVy,
+            baseVx,
+            baseVy,
+            depth,
+            size: baseSize,
+            rotation: Math.random() * Math.PI * 2,
+            spin: (Math.random() - 0.5) * 1.2,
+            wobbleAmp: 5 + Math.random() * 20,
+            wobblePhase: Math.random() * Math.PI * 2,
+            radii,
+            hueShift: Math.random() * 20,
+            roughness: 0.8 + Math.random() * 0.4
+          });
+        }
+      }
+
+      function drawPeripheralBlur(time) {
+        if (peripheralBlur <= 0.01) return;
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const intensity = Math.min(1, peripheralBlur);
+        const baseInner = 0.04 + 0.03 * Math.sin(time * 0.002);
+        const innerR = Math.min(width, height) * Math.max(0.01, baseInner * (1 - 0.6 * intensity));
+        const outerR = Math.hypot(width, height) * (0.8 + 0.5 * intensity);
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1 * intensity;
+        const vignette = ctx.createRadialGradient(centerX, centerY, innerR, centerX, centerY, outerR);
+        vignette.addColorStop(0, 'rgba(0,0,0,0)');
+        vignette.addColorStop(0.1, 'rgba(0,0,0,0.35)');
+        vignette.addColorStop(0.4, 'rgba(0,0,0,0.75)');
+        vignette.addColorStop(0.65, 'rgba(0,0,0,0.92)');
+        vignette.addColorStop(1, 'rgba(0,0,0,1)');
+        ctx.filter = `blur(${55 * intensity}px)`;
+        ctx.fillStyle = vignette;
+        ctx.fillRect(0, 0, width, height);
+        ctx.filter = 'none';
+
+        ctx.globalAlpha = 0.4 * intensity;
+        ctx.fillStyle = 'rgba(0,0,0,1)';
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.globalAlpha = 0.45 * intensity;
+        ctx.globalCompositeOperation = 'lighter';
+        const sweepCount = 10;
+        for (let i = 0; i < sweepCount; i++) {
+          const angle = time * 0.002 + (i / sweepCount) * Math.PI * 2;
+          const thickness = (0.05 + 0.07 * Math.sin(time * 0.003 + i)) * (0.7 + 0.3 * intensity);
+          ctx.beginPath();
+          ctx.moveTo(centerX, centerY);
+          ctx.arc(centerX, centerY, outerR, angle - thickness, angle + thickness);
+          ctx.closePath();
+          ctx.fillStyle = 'rgba(0,0,0,0.7)';
+          ctx.fill();
+        }
+
+        ctx.globalCompositeOperation = 'screen';
+        ctx.globalAlpha = 0.3 * intensity;
+        const glow = ctx.createRadialGradient(centerX, centerY, innerR * 0.5, centerX, centerY, outerR);
+        glow.addColorStop(0, 'rgba(40,80,255,0.45)');
+        glow.addColorStop(0.4, 'rgba(20,30,80,0.18)');
+        glow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.restore();
+      }
+
+      function updateAsteroidFragments(delta, time) {
+        const margin = 200;
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const isRolling = state === 'rolling';
+        const pull = isRolling ? Math.min(Math.max((time - rollStart) / SCATTER_DURATION, 0), 1) : 0;
+        const gravity = Math.pow(pull, 1.15) * 900;
+
+        for (const rock of asteroidFragments) {
+          if (gravity > 0) {
+            const dx = centerX - rock.x;
+            const dy = centerY - rock.y;
+            const dist = Math.hypot(dx, dy) + 1;
+            rock.vx += (dx / dist) * gravity * delta;
+            rock.vy += (dy / dist) * gravity * delta;
+            const damp = Math.max(0.55, 1 - 0.35 * pull * delta);
+            rock.vx *= damp;
+            rock.vy *= damp;
+          } else {
+            // 平滑回復原始漂浮狀態
+            rock.vx += (rock.baseVx - rock.vx) * Math.min(delta * 0.6, 0.2);
+            rock.vy += (rock.baseVy - rock.vy) * Math.min(delta * 0.6, 0.2);
+          }
+
+          rock.x += rock.vx * delta;
+          rock.y += rock.vy * delta;
+          rock.rotation += rock.spin * delta;
+
+          if (rock.x > width + margin) rock.x = -margin;
+          else if (rock.x < -margin) rock.x = width + margin;
+
+          if (rock.y > height + margin) rock.y = -margin;
+          else if (rock.y < -margin) rock.y = height + margin;
+        }
       }
 
       function seedFloatingCards() {
@@ -196,7 +371,7 @@
         winnerCard = null;
         if (!options.length) return;
 
-        const maxCards = 70;
+        const maxCards = 100;
         const minPerOption = 3;
         let perOption = Math.floor(maxCards / options.length);
         if (perOption < minPerOption) perOption = minPerOption;
@@ -309,6 +484,129 @@
         }
       }
 
+      function createLightningBurst() {
+        lightnings.length = 0;
+        const count = 12;
+        for (let i = 0; i < count; i++) {
+          const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
+          const segments = [];
+          const segmentCount = 8 + Math.floor(Math.random() * 6);
+          let x = width / 2;
+          let y = height / 2;
+          
+          for (let j = 0; j < segmentCount; j++) {
+            const length = 40 + Math.random() * 80;
+            const deviation = (Math.random() - 0.5) * 0.8;
+            const segAngle = angle + deviation;
+            const nextX = x + Math.cos(segAngle) * length;
+            const nextY = y + Math.sin(segAngle) * length;
+            segments.push({ x1: x, y1: y, x2: nextX, y2: nextY });
+            x = nextX;
+            y = nextY;
+          }
+          
+          lightnings.push({
+            segments,
+            life: 0.3 + Math.random() * 0.2,
+            age: 0,
+            width: 2 + Math.random() * 3,
+            hue: 200 + Math.random() * 100,
+            flicker: Math.random() * Math.PI * 2
+          });
+        }
+      }
+
+      function createMagicCircles() {
+        magicCircles.length = 0;
+        const circles = [
+          { radius: 80, speed: 0.02, direction: 1, symbols: 8 },
+          { radius: 140, speed: 0.015, direction: -1, symbols: 12 },
+          { radius: 220, speed: 0.01, direction: 1, symbols: 16 }
+        ];
+        
+        circles.forEach((circle, index) => {
+          magicCircles.push({
+            radius: circle.radius,
+            speed: circle.speed,
+            direction: circle.direction,
+            symbols: circle.symbols,
+            rotation: 0,
+            life: 3 + Math.random(),
+            age: 0,
+            layer: index,
+            opacity: 0.8 - index * 0.2
+          });
+        });
+      }
+
+      function createRainbowParticles() {
+        rainbowParticles.length = 0;
+        const count = 150;
+        for (let i = 0; i < count; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 3 + Math.random() * 8;
+          const distance = Math.random() * 100;
+          
+          rainbowParticles.push({
+            x: width / 2 + Math.cos(angle) * distance,
+            y: height / 2 + Math.sin(angle) * distance,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: 2 + Math.random() * 4,
+            hue: Math.random() * 360,
+            saturation: 80 + Math.random() * 20,
+            lightness: 50 + Math.random() * 30,
+            life: 1.5 + Math.random() * 1,
+            age: 0,
+            trail: []
+          });
+        }
+      }
+
+      function createShockWaves() {
+        shockWaves.length = 0;
+        const count = 5;
+        const fullSpan = Math.hypot(width, height); // 以對角線確保覆蓋全螢幕
+        for (let i = 0; i < count; i++) {
+          shockWaves.push({
+            x: width / 2,
+            y: height / 2,
+            radius: 0,
+            maxRadius: fullSpan * (0.75 + i * 0.15),
+            speed: 10 + i * 2.5,
+            width: Math.max(2, 6 - i),
+            life: 2.6 + i * 0.35,
+            age: 0,
+            delay: i * 0.08
+          });
+        }
+      }
+
+      function createAuroras() {
+        auroras.length = 0;
+        const count = 6;
+        for (let i = 0; i < count; i++) {
+          const points = [];
+          const pointCount = 21; // 增加一個點來確保覆蓋整個寬度
+          for (let j = 0; j < pointCount; j++) {
+            points.push({
+              x: (width / (pointCount - 1)) * j, // 使用 pointCount - 1 來確保最後一個點在 width 位置
+              y: height * 0.3 + Math.sin(j * 0.5) * 100,
+              baseY: height * 0.3 + Math.sin(j * 0.5) * 100
+            });
+          }
+          
+          auroras.push({
+            points,
+            hue: i * 60,
+            life: 4 + Math.random() * 2,
+            age: 0,
+            wave: Math.random() * Math.PI * 2,
+            amplitude: 50 + Math.random() * 50
+          });
+        }
+      }
+
       function startDraw() {
         if (state === 'rolling') return;
         parseOptions();
@@ -316,7 +614,10 @@
           msg.textContent = '請先輸入至少一個選項喔！';
           return;
         }
+        
         state = 'rolling';
+        btn.classList.add('rolling');
+        btn.textContent = '🌟 命運之輪轉動中... 🌟';
         msg.textContent = '';
         rollStart = performance.now();
         finalLabel = '';
@@ -325,6 +626,13 @@
         winnerOrigin = null;
         confetti.length = 0;
         sparks.length = 0;
+        lightnings.length = 0;
+        magicCircles.length = 0;
+        rainbowParticles.length = 0;
+        shockWaves.length = 0;
+        auroras.length = 0;
+        screenShake = { x: 0, y: 0, intensity: 0 };
+        timeWarp = 1;
       }
 
       btn.addEventListener('click', startDraw);
@@ -401,16 +709,55 @@
         ctx.globalCompositeOperation = 'source-over';
         ctx.restore();
 
+        ctx.save();
+        ctx.globalAlpha = 0.85;
+        for (const rock of asteroidFragments) {
+          const bob = Math.sin(time * 0.0008 + rock.wobblePhase) * rock.wobbleAmp * (0.4 + rock.depth * 0.6);
+          const depthScale = 0.45 + rock.depth * 0.65;
+          const size = rock.size * depthScale;
+
+          ctx.save();
+          ctx.translate(rock.x, rock.y + bob);
+          ctx.rotate(rock.rotation);
+
+          const dark = 35 + rock.depth * 40;
+          const light = 80 + rock.depth * 30;
+          const grad = ctx.createLinearGradient(-size, -size, size, size);
+          grad.addColorStop(0, `rgba(${dark}, ${dark + 10}, ${dark + 25}, 0.9)`);
+          grad.addColorStop(1, `rgba(${light}, ${light + 10}, ${light + 35}, 0.95)`);
+          ctx.fillStyle = grad;
+          ctx.strokeStyle = 'rgba(10, 15, 30, 0.7)';
+          ctx.lineWidth = 0.6 + rock.depth * 0.5;
+
+          ctx.beginPath();
+          const pointCount = rock.radii.length;
+          for (let i = 0; i < pointCount; i++) {
+            const angle = (Math.PI * 2 * i) / pointCount;
+            const radius = rock.radii[i] * size * rock.roughness;
+            const px = Math.cos(angle) * radius;
+            const py = Math.sin(angle) * radius * 0.85;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.restore();
+        }
+        ctx.restore();
+
         const isRollingBg = state === 'rolling';
+        const diagRadius = Math.hypot(width, height) * 0.65; // 抽獎時延展至超出螢幕邊界
         const baseMinR = Math.min(width, height) * 0.12;
-        const baseMaxR = Math.min(width, height) * 0.6;
-        const ringCount = 5;
-        const speedBase = 0.00025 * (isRollingBg ? 1.6 : 1);
+        const baseMaxR = isRollingBg ? diagRadius : Math.min(width, height) * 0.6;
+        const ringCount = isRollingBg ? 10 : 5;
+        const speedBase = 0.00025 * (isRollingBg ? 4 : 1);
 
         for (let i = 0; i < ringCount; i++) {
           let inward;
           if (isRollingBg) {
-            const phase = (time * speedBase + i * 0.18) % 1;
+            const phase = (time * speedBase + i * 0.15) % 1;
             inward = 1 - phase;
           } else {
             const baseInward = 0.2 + 0.6 * (i / Math.max(1, ringCount - 1));
@@ -422,14 +769,44 @@
           const alphaBase = isRollingBg
             ? 0.12 + 0.28 * inward
             : 0.08 + 0.2 * inward;
-          const alphaBoost = isRollingBg ? 0.18 * inward : 0;
+          const alphaBoost = isRollingBg ? 0.25 * inward : 0;
           const alpha = Math.max(alphaBase + alphaBoost, 0);
 
           ctx.beginPath();
           ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
           ctx.strokeStyle = `rgba(120, 180, 255, ${alpha})`;
-          ctx.lineWidth = 1.5 + 3.5 * inward + (isRollingBg ? 2 * inward : 0.8 * inward);
+          const dynamicWidth = isRollingBg
+            ? 2 + 1.5 * inward + 8 * (1 - inward)
+            : 1.5 + 3.5 * inward + 0.8 * inward;
+          ctx.lineWidth = dynamicWidth;
           ctx.stroke();
+        }
+
+        if (isRollingBg) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'screen';
+          const beamCount = 24;
+          const maxR = baseMaxR * 1.05;
+          for (let i = 0; i < beamCount; i++) {
+            const angle = (i / beamCount) * Math.PI * 2 + time * 0.0015;
+            const inner = baseMinR * 0.5;
+            const outer = maxR;
+            const widthBeam = 0.02 + 0.015 * Math.sin(time * 0.002 + i);
+            const spread = Math.PI * widthBeam;
+
+            const grad = ctx.createRadialGradient(centerX, centerY, inner, centerX, centerY, outer);
+            grad.addColorStop(0, 'rgba(255,255,255,0.25)');
+            grad.addColorStop(0.3, 'rgba(160,200,255,0.18)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, outer, angle - spread, angle + spread);
+            ctx.closePath();
+            ctx.fill();
+          }
+          ctx.restore();
         }
       }
 
@@ -504,10 +881,11 @@
 
           if (isRolling) {
             const pull = scatterPhase;
-            speedFactor = 1 + 6.2 * pull;
-            wobbleFactor = baseWobble + 3.2 * pull;
-            radiusJitter = 120 * pull * pull;
-            swirlExtra = 0.09 * pull * (card.radius / (Math.min(width, height) * 0.95));
+            const accel = 1 - Math.pow(1 - pull, 1.2);
+            speedFactor = 1 + 9 * accel;
+            wobbleFactor = baseWobble + 3.8 * accel;
+            radiusJitter = 90 * accel * accel;
+            swirlExtra = 0.12 * accel * (card.radius / (Math.min(width, height) * 0.95));
           }
 
           card.angle += card.speed * 0.002 * speedFactor + swirlExtra;
@@ -517,13 +895,14 @@
           let dynBase;
           if (isRolling) {
             const pull = scatterPhase;
-            const easedPull = 1 - Math.pow(1 - pull, 2);
+            const easedPull = 1 - Math.pow(1 - pull, 1.4);
             const baseRadius = card.radius * card.depth;
-            const clusterMin = Math.min(width, height) * (0.08 + 0.04 * card.depth);
-            const clusterRadius = clusterMin;
-            const mixedRadius = baseRadius * (1 - easedPull) + clusterRadius * easedPull;
+            const clusterMin = Math.min(width, height) * (0.05 + 0.03 * card.depth);
+            const clusterRadius = clusterMin * (0.8 + 0.2 * card.depth);
+            const mixWeight = Math.pow(easedPull, 1.15);
+            const mixedRadius = baseRadius * (1 - mixWeight) + clusterRadius * mixWeight;
             dynBase = mixedRadius * breathe +
-                      Math.sin(time * 0.0045 + card.wobblePhase) * radiusJitter * (1 - easedPull * 0.6);
+                      Math.sin(time * 0.0045 + card.wobblePhase) * radiusJitter * (1 - mixWeight * 0.4);
           } else {
             const baseRadius = card.radius * card.depth * breathe;
             dynBase = baseRadius + Math.sin(time * 0.0045 + card.wobblePhase) * radiusJitter * card.depth;
@@ -729,12 +1108,274 @@
         ctx.restore();
       }
 
+      function updateLightnings(delta) {
+        for (const l of lightnings) {
+          l.age += delta;
+          l.flicker += delta * 20;
+        }
+      }
+
+      function drawLightnings() {
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        for (const l of lightnings) {
+          if (l.age >= l.life) continue;
+          const t = l.age / l.life;
+          const alpha = (1 - t) * (0.8 + 0.4 * Math.sin(l.flicker));
+          ctx.globalAlpha = alpha;
+          
+          // 主閃電
+          ctx.strokeStyle = `hsl(${l.hue}, 100%, 90%)`;
+          ctx.lineWidth = l.width;
+          ctx.beginPath();
+          for (const seg of l.segments) {
+            ctx.moveTo(seg.x1, seg.y1);
+            ctx.lineTo(seg.x2, seg.y2);
+          }
+          ctx.stroke();
+          
+          // 光暈效果
+          ctx.strokeStyle = `hsl(${l.hue}, 100%, 70%)`;
+          ctx.lineWidth = l.width * 3;
+          ctx.globalAlpha = alpha * 0.3;
+          ctx.beginPath();
+          for (const seg of l.segments) {
+            ctx.moveTo(seg.x1, seg.y1);
+            ctx.lineTo(seg.x2, seg.y2);
+          }
+          ctx.stroke();
+        }
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.restore();
+      }
+
+      function updateMagicCircles(delta, time) {
+        for (const mc of magicCircles) {
+          mc.age += delta;
+          mc.rotation += mc.speed * mc.direction * timeWarp;
+        }
+      }
+
+      function drawMagicCircles(time) {
+        ctx.save();
+        const centerX = width / 2;
+        const centerY = height / 2;
+        
+        for (const mc of magicCircles) {
+          if (mc.age >= mc.life) continue;
+          const t = mc.age / mc.life;
+          const alpha = mc.opacity * (1 - t) * (0.7 + 0.3 * Math.sin(time * 0.01));
+          
+          ctx.save();
+          ctx.translate(centerX, centerY);
+          ctx.rotate(mc.rotation);
+          ctx.globalAlpha = alpha;
+          
+          // 繪製魔法圓環
+          ctx.strokeStyle = `hsl(${280 + mc.layer * 30}, 80%, 70%)`;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(0, 0, mc.radius, 0, Math.PI * 2);
+          ctx.stroke();
+          
+          // 繪製符號
+          for (let i = 0; i < mc.symbols; i++) {
+            const angle = (Math.PI * 2 * i) / mc.symbols;
+            const x = Math.cos(angle) * mc.radius;
+            const y = Math.sin(angle) * mc.radius;
+            
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle + Math.PI / 2);
+            
+            // 繪製神秘符號
+            ctx.fillStyle = `hsl(${280 + mc.layer * 30}, 90%, 80%)`;
+            ctx.font = `${8 + mc.layer * 2}px serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const symbols = ['◆', '◇', '★', '☆', '◈', '◉', '◎', '○'];
+            ctx.fillText(symbols[i % symbols.length], 0, 0);
+            
+            ctx.restore();
+          }
+          
+          ctx.restore();
+        }
+        ctx.restore();
+      }
+
+      function updateRainbowParticles(delta) {
+        for (const p of rainbowParticles) {
+          p.age += delta;
+          p.x += p.vx * timeWarp;
+          p.y += p.vy * timeWarp;
+          p.vy += 2 * delta; // 重力
+          p.vx *= 0.998; // 阻力
+          
+          // 更新拖尾
+          p.trail.push({ x: p.x, y: p.y });
+          if (p.trail.length > 8) {
+            p.trail.shift();
+          }
+          
+          // 色彩變化
+          p.hue = (p.hue + 120 * delta) % 360;
+        }
+      }
+
+      function drawRainbowParticles() {
+        ctx.save();
+        for (const p of rainbowParticles) {
+          if (p.age >= p.life) continue;
+          const t = p.age / p.life;
+          const alpha = 1 - t;
+          
+          // 繪製拖尾
+          for (let i = 0; i < p.trail.length; i++) {
+            const trailAlpha = alpha * (i / p.trail.length) * 0.5;
+            ctx.globalAlpha = trailAlpha;
+            ctx.fillStyle = `hsl(${p.hue}, ${p.saturation}%, ${p.lightness}%)`;
+            ctx.beginPath();
+            ctx.arc(p.trail[i].x, p.trail[i].y, p.size * (i / p.trail.length), 0, Math.PI * 2);
+            ctx.fill();
+          }
+          
+          // 繪製主粒子
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = `hsl(${p.hue}, ${p.saturation}%, ${p.lightness}%)`;
+          ctx.shadowColor = `hsl(${p.hue}, 100%, 70%)`;
+          ctx.shadowBlur = 10;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+        ctx.restore();
+      }
+
+      function updateShockWaves(delta) {
+        for (const sw of shockWaves) {
+          if (sw.age < sw.delay) {
+            sw.age += delta;
+            continue;
+          }
+          sw.age += delta;
+          sw.radius += sw.speed * timeWarp;
+        }
+      }
+
+      function drawShockWaves() {
+        ctx.save();
+        for (const sw of shockWaves) {
+          if (sw.age < sw.delay || sw.age >= sw.life || sw.radius >= sw.maxRadius) continue;
+          
+          const t = (sw.age - sw.delay) / (sw.life - sw.delay);
+          const alpha = (1 - t) * 0.8;
+          const radiusProgress = sw.radius / sw.maxRadius;
+          
+          ctx.globalAlpha = alpha;
+          ctx.strokeStyle = `hsl(${200 + radiusProgress * 60}, 100%, ${70 + radiusProgress * 20}%)`;
+          ctx.lineWidth = sw.width * (1 - radiusProgress);
+          ctx.beginPath();
+          ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      function updateAuroras(delta, time) {
+        for (const aurora of auroras) {
+          aurora.age += delta;
+          aurora.wave += delta * 2;
+          
+          // 更新極光點位置
+          for (let i = 0; i < aurora.points.length; i++) {
+            const point = aurora.points[i];
+            point.y = point.baseY + Math.sin(aurora.wave + i * 0.3) * aurora.amplitude;
+          }
+        }
+      }
+
+      function drawAuroras() {
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        
+        for (const aurora of auroras) {
+          if (aurora.age >= aurora.life) continue;
+          
+          const t = aurora.age / aurora.life;
+          const alpha = (1 - t) * 0.4;
+          
+          // 創建漸層
+          const gradient = ctx.createLinearGradient(0, 0, 0, height);
+          gradient.addColorStop(0, `hsla(${aurora.hue}, 80%, 60%, 0)`);
+          gradient.addColorStop(0.3, `hsla(${aurora.hue}, 80%, 60%, ${alpha})`);
+          gradient.addColorStop(0.7, `hsla(${aurora.hue}, 80%, 60%, ${alpha * 0.5})`);
+          gradient.addColorStop(1, `hsla(${aurora.hue}, 80%, 60%, 0)`);
+          
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.moveTo(aurora.points[0].x, aurora.points[0].y);
+          
+          for (let i = 1; i < aurora.points.length; i++) {
+            ctx.lineTo(aurora.points[i].x, aurora.points[i].y);
+          }
+          
+          ctx.lineTo(width, height);
+          ctx.lineTo(0, height);
+          ctx.closePath();
+          ctx.fill();
+        }
+        
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.restore();
+      }
+
       function animate(time) {
         requestAnimationFrame(animate);
         const delta = (time - lastTime) / 1000;
         lastTime = time;
 
+        // 更新震動效果
+        if (screenShake.intensity > 0) {
+          screenShake.x = (Math.random() - 0.5) * screenShake.intensity;
+          screenShake.y = (Math.random() - 0.5) * screenShake.intensity;
+          screenShake.intensity *= 0.95; // 逐漸減弱
+          if (screenShake.intensity < 0.1) {
+            screenShake.intensity = 0;
+            screenShake.x = 0;
+            screenShake.y = 0;
+          }
+        }
+
+        // 應用震動偏移
+        ctx.save();
+        ctx.translate(screenShake.x, screenShake.y);
+
+        // 更新時間扭曲效果
+        let blurProgress = 0;
+        if (state === 'rolling') {
+          const elapsed = time - rollStart;
+          const rollProgress = elapsed / ROLL_DURATION;
+          if (rollProgress > 0.7 && rollProgress < 0.9) {
+            timeWarp = 0.3; // 慢動作效果
+          } else {
+            timeWarp = 1;
+          }
+          blurProgress = Math.max(0, Math.min(1, elapsed / SCATTER_DURATION));
+
+          const targetShake = 3 + 25 * Math.pow(blurProgress, 1.2);
+          if (screenShake.intensity < targetShake) {
+            screenShake.intensity = targetShake;
+          }
+        }
+
+        const targetBlur = state === 'rolling' ? Math.min(1, blurProgress * 1.2) : 0;
+        peripheralBlur += (targetBlur - peripheralBlur) * Math.min(delta * 4, 0.3);
+
+        updateAsteroidFragments(delta, time);
         drawBackground(time);
+        drawAuroras();
         drawFloatingCards(time);
 
         if (state === 'rolling') {
@@ -756,14 +1397,30 @@
             }
             state = 'celebrate';
             celebrateStart = time;
+            
+            // 重置按鈕狀態
+            btn.classList.remove('rolling');
+            btn.textContent = '🎊 再來一次！🎊';
+            
+            // 創建所有慶祝特效
             createConfettiBurst();
             createSparksBurst();
-            if (finalLabel) {
-              msg.textContent = `今晚吃：${finalLabel}`;
-            }
+            createLightningBurst();
+            createMagicCircles();
+            createRainbowParticles();
+            createShockWaves();
+            createAuroras();
+            
+            // 觸發震動效果
+            screenShake.intensity = 20;
+            
+            // if (finalLabel) {
+            //   msg.textContent = `今晚吃：${finalLabel}`;
+            // }
           }
         }
 
+        // 更新和繪製所有特效
         if (confetti.length) {
           updateConfetti(delta);
           drawConfetti();
@@ -772,6 +1429,29 @@
           updateSparks(delta);
           drawSparks();
         }
+        if (lightnings.length) {
+          updateLightnings(delta);
+          drawLightnings();
+        }
+        if (magicCircles.length) {
+          updateMagicCircles(delta, time);
+          drawMagicCircles(time);
+        }
+        if (rainbowParticles.length) {
+          updateRainbowParticles(delta);
+          drawRainbowParticles();
+        }
+        if (shockWaves.length) {
+          updateShockWaves(delta);
+          drawShockWaves();
+        }
+        if (auroras.length) {
+          updateAuroras(delta, time);
+        }
+
+        ctx.restore(); // 恢復震動偏移
+
+        drawPeripheralBlur(time);
       }
 
       animate(performance.now());
