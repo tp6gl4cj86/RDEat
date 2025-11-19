@@ -201,6 +201,7 @@
       const rainbowParticles = [];
       const shockWaves = [];
       const auroras = [];
+      const asteroidFragments = [];
 
       let winnerCard = null;
       let celebrateStart = 0;
@@ -219,6 +220,7 @@
       function seedBackground() {
         stars.length = 0;
         orbs.length = 0;
+        asteroidFragments.length = 0;
 
         const starCount = 160;
         for (let i = 0; i < starCount; i++) {
@@ -241,6 +243,72 @@
             speed: 0.2 + Math.random() * 0.4,
             depth: 0.5 + Math.random() * 1.4
           });
+        }
+
+        const rockCount = 90 + Math.floor(Math.min(width, height) / 18);
+        for (let i = 0; i < rockCount; i++) {
+          const depth = 0.35 + Math.random() * 1.25;
+          const baseSize = 3 + Math.random() * 9;
+          const pointCount = 6 + Math.floor(Math.random() * 4);
+          const radii = Array.from({ length: pointCount }, () => 0.5 + Math.random() * 0.7);
+          const direction = Math.random() < 0.5 ? -1 : 1;
+          const speed = (10 + Math.random() * 24) * (0.4 + depth * 0.8);
+          const baseVy = (Math.random() * 16 - 8) * (0.25 + depth * 0.35);
+          const baseVx = direction * speed;
+
+          asteroidFragments.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            vx: baseVx,
+            vy: baseVy,
+            baseVx,
+            baseVy,
+            depth,
+            size: baseSize,
+            rotation: Math.random() * Math.PI * 2,
+            spin: (Math.random() - 0.5) * 1.2,
+            wobbleAmp: 5 + Math.random() * 20,
+            wobblePhase: Math.random() * Math.PI * 2,
+            radii,
+            hueShift: Math.random() * 20,
+            roughness: 0.8 + Math.random() * 0.4
+          });
+        }
+      }
+
+      function updateAsteroidFragments(delta, time) {
+        const margin = 200;
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const isRolling = state === 'rolling';
+        const pull = isRolling ? Math.min(Math.max((time - rollStart) / SCATTER_DURATION, 0), 1) : 0;
+        const gravity = Math.pow(pull, 1.15) * 900;
+
+        for (const rock of asteroidFragments) {
+          if (gravity > 0) {
+            const dx = centerX - rock.x;
+            const dy = centerY - rock.y;
+            const dist = Math.hypot(dx, dy) + 1;
+            rock.vx += (dx / dist) * gravity * delta;
+            rock.vy += (dy / dist) * gravity * delta;
+            const damp = Math.max(0.55, 1 - 0.35 * pull * delta);
+            rock.vx *= damp;
+            rock.vy *= damp;
+          } else {
+            // 平滑回復原始漂浮狀態
+            rock.vx += (rock.baseVx - rock.vx) * Math.min(delta * 0.6, 0.2);
+            rock.vy += (rock.baseVy - rock.vy) * Math.min(delta * 0.6, 0.2);
+          }
+
+          rock.x += rock.vx * delta;
+          rock.y += rock.vy * delta;
+          rock.rotation += rock.spin * delta;
+
+          if (rock.x > width + margin) rock.x = -margin;
+          else if (rock.x < -margin) rock.x = width + margin;
+
+          if (rock.y > height + margin) rock.y = -margin;
+          else if (rock.y < -margin) rock.y = height + margin;
         }
       }
 
@@ -585,6 +653,44 @@
           ctx.fill();
         }
         ctx.globalCompositeOperation = 'source-over';
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalAlpha = 0.85;
+        for (const rock of asteroidFragments) {
+          const bob = Math.sin(time * 0.0008 + rock.wobblePhase) * rock.wobbleAmp * (0.4 + rock.depth * 0.6);
+          const depthScale = 0.45 + rock.depth * 0.65;
+          const size = rock.size * depthScale;
+
+          ctx.save();
+          ctx.translate(rock.x, rock.y + bob);
+          ctx.rotate(rock.rotation);
+
+          const dark = 35 + rock.depth * 40;
+          const light = 80 + rock.depth * 30;
+          const grad = ctx.createLinearGradient(-size, -size, size, size);
+          grad.addColorStop(0, `rgba(${dark}, ${dark + 10}, ${dark + 25}, 0.9)`);
+          grad.addColorStop(1, `rgba(${light}, ${light + 10}, ${light + 35}, 0.95)`);
+          ctx.fillStyle = grad;
+          ctx.strokeStyle = 'rgba(10, 15, 30, 0.7)';
+          ctx.lineWidth = 0.6 + rock.depth * 0.5;
+
+          ctx.beginPath();
+          const pointCount = rock.radii.length;
+          for (let i = 0; i < pointCount; i++) {
+            const angle = (Math.PI * 2 * i) / pointCount;
+            const radius = rock.radii[i] * size * rock.roughness;
+            const px = Math.cos(angle) * radius;
+            const py = Math.sin(angle) * radius * 0.85;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.restore();
+        }
         ctx.restore();
 
         const isRollingBg = state === 'rolling';
@@ -1204,6 +1310,7 @@
           
         }
 
+        updateAsteroidFragments(delta, time);
         drawBackground(time);
         drawAuroras();
         drawFloatingCards(time);
