@@ -187,7 +187,7 @@
       let state = 'idle';
       let finalLabel = '';
       let rollStart = 0;
-      const SCATTER_DURATION = 2000;
+      const SCATTER_DURATION = 1500;
       const REVEAL_DURATION = 1000;
       const ROLL_DURATION = SCATTER_DURATION + REVEAL_DURATION;
 
@@ -616,7 +616,7 @@
           ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
           ctx.strokeStyle = `rgba(120, 180, 255, ${alpha})`;
           const dynamicWidth = isRollingBg
-            ? 1 + 2 * inward + 5 * (1 - inward)
+            ? 2 + 1.5 * inward + 8 * (1 - inward)
             : 1.5 + 3.5 * inward + 0.8 * inward;
           ctx.lineWidth = dynamicWidth;
           ctx.stroke();
@@ -721,10 +721,11 @@
 
           if (isRolling) {
             const pull = scatterPhase;
-            speedFactor = 1 + 6.2 * pull;
-            wobbleFactor = baseWobble + 3.2 * pull;
-            radiusJitter = 120 * pull * pull;
-            swirlExtra = 0.09 * pull * (card.radius / (Math.min(width, height) * 0.95));
+            const accel = 1 - Math.pow(1 - pull, 1.2);
+            speedFactor = 1 + 9 * accel;
+            wobbleFactor = baseWobble + 3.8 * accel;
+            radiusJitter = 90 * accel * accel;
+            swirlExtra = 0.12 * accel * (card.radius / (Math.min(width, height) * 0.95));
           }
 
           card.angle += card.speed * 0.002 * speedFactor + swirlExtra;
@@ -734,13 +735,14 @@
           let dynBase;
           if (isRolling) {
             const pull = scatterPhase;
-            const easedPull = 1 - Math.pow(1 - pull, 2);
+            const easedPull = 1 - Math.pow(1 - pull, 1.4);
             const baseRadius = card.radius * card.depth;
-            const clusterMin = Math.min(width, height) * (0.08 + 0.04 * card.depth);
-            const clusterRadius = clusterMin;
-            const mixedRadius = baseRadius * (1 - easedPull) + clusterRadius * easedPull;
+            const clusterMin = Math.min(width, height) * (0.05 + 0.03 * card.depth);
+            const clusterRadius = clusterMin * (0.8 + 0.2 * card.depth);
+            const mixWeight = Math.pow(easedPull, 1.15);
+            const mixedRadius = baseRadius * (1 - mixWeight) + clusterRadius * mixWeight;
             dynBase = mixedRadius * breathe +
-                      Math.sin(time * 0.0045 + card.wobblePhase) * radiusJitter * (1 - easedPull * 0.6);
+                      Math.sin(time * 0.0045 + card.wobblePhase) * radiusJitter * (1 - mixWeight * 0.4);
           } else {
             const baseRadius = card.radius * card.depth * breathe;
             dynBase = baseRadius + Math.sin(time * 0.0045 + card.wobblePhase) * radiusJitter * card.depth;
@@ -1242,9 +1244,9 @@
             // 觸發震動效果
             screenShake.intensity = 20;
             
-            if (finalLabel) {
-              msg.textContent = `今晚吃：${finalLabel}`;
-            }
+            // if (finalLabel) {
+            //   msg.textContent = `今晚吃：${finalLabel}`;
+            // }
           }
         }
 
