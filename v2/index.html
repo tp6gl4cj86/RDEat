@@ -208,6 +208,7 @@
       let winnerOrigin = null;
       let screenShake = { x: 0, y: 0, intensity: 0 };
       let timeWarp = 1;
+      let peripheralBlur = 0;
 
 
       function parseOptions() {
@@ -276,6 +277,59 @@
         }
       }
 
+      function drawPeripheralBlur(time) {
+        if (peripheralBlur <= 0.01) return;
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const intensity = Math.min(1, peripheralBlur);
+        const baseInner = 0.04 + 0.03 * Math.sin(time * 0.002);
+        const innerR = Math.min(width, height) * Math.max(0.01, baseInner * (1 - 0.6 * intensity));
+        const outerR = Math.hypot(width, height) * (0.8 + 0.5 * intensity);
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1 * intensity;
+        const vignette = ctx.createRadialGradient(centerX, centerY, innerR, centerX, centerY, outerR);
+        vignette.addColorStop(0, 'rgba(0,0,0,0)');
+        vignette.addColorStop(0.1, 'rgba(0,0,0,0.35)');
+        vignette.addColorStop(0.4, 'rgba(0,0,0,0.75)');
+        vignette.addColorStop(0.65, 'rgba(0,0,0,0.92)');
+        vignette.addColorStop(1, 'rgba(0,0,0,1)');
+        ctx.filter = `blur(${55 * intensity}px)`;
+        ctx.fillStyle = vignette;
+        ctx.fillRect(0, 0, width, height);
+        ctx.filter = 'none';
+
+        ctx.globalAlpha = 0.4 * intensity;
+        ctx.fillStyle = 'rgba(0,0,0,1)';
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.globalAlpha = 0.45 * intensity;
+        ctx.globalCompositeOperation = 'lighter';
+        const sweepCount = 10;
+        for (let i = 0; i < sweepCount; i++) {
+          const angle = time * 0.002 + (i / sweepCount) * Math.PI * 2;
+          const thickness = (0.05 + 0.07 * Math.sin(time * 0.003 + i)) * (0.7 + 0.3 * intensity);
+          ctx.beginPath();
+          ctx.moveTo(centerX, centerY);
+          ctx.arc(centerX, centerY, outerR, angle - thickness, angle + thickness);
+          ctx.closePath();
+          ctx.fillStyle = 'rgba(0,0,0,0.7)';
+          ctx.fill();
+        }
+
+        ctx.globalCompositeOperation = 'screen';
+        ctx.globalAlpha = 0.3 * intensity;
+        const glow = ctx.createRadialGradient(centerX, centerY, innerR * 0.5, centerX, centerY, outerR);
+        glow.addColorStop(0, 'rgba(40,80,255,0.45)');
+        glow.addColorStop(0.4, 'rgba(20,30,80,0.18)');
+        glow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.restore();
+      }
+
       function updateAsteroidFragments(delta, time) {
         const margin = 200;
         const centerX = width / 2;
@@ -317,7 +371,7 @@
         winnerCard = null;
         if (!options.length) return;
 
-        const maxCards = 70;
+        const maxCards = 100;
         const minPerOption = 3;
         let perOption = Math.floor(maxCards / options.length);
         if (perOption < minPerOption) perOption = minPerOption;
@@ -1299,6 +1353,7 @@
         ctx.translate(screenShake.x, screenShake.y);
 
         // 更新時間扭曲效果
+        let blurProgress = 0;
         if (state === 'rolling') {
           const elapsed = time - rollStart;
           const rollProgress = elapsed / ROLL_DURATION;
@@ -1307,8 +1362,11 @@
           } else {
             timeWarp = 1;
           }
-          
+          blurProgress = Math.max(0, Math.min(1, elapsed / SCATTER_DURATION));
         }
+
+        const targetBlur = state === 'rolling' ? Math.min(1, blurProgress * 1.2) : 0;
+        peripheralBlur += (targetBlur - peripheralBlur) * Math.min(delta * 4, 0.3);
 
         updateAsteroidFragments(delta, time);
         drawBackground(time);
@@ -1385,6 +1443,8 @@
         if (auroras.length) {
           updateAuroras(delta, time);
         }
+
+        drawPeripheralBlur(time);
 
         ctx.restore(); // 恢復震動偏移
       }
