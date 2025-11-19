@@ -110,7 +110,7 @@
 </head>
 <body>
   <h1>✨ 聚餐命運抽卡 ✨</h1>
-  <p class="hint">輸入「馬辣, 鼎旺, 撈王...」按下抽卡，就會用爆炸特效抽出今晚命運之選</p>
+  <p class="hint">輸入「鼎旺, 金蓬萊, 驥園...」按下抽卡，就會用爆炸特效抽出今晚命運之選</p>
   <canvas id="fxCanvas"></canvas>
   <div class="controls">
     <input id="optionsInput" type="text" value="鼎旺, 金蓬萊, 驥園, URBAN, 享鴨, NAGOMI" placeholder="輸入選項，用逗號分隔" />
@@ -125,6 +125,19 @@
       const input = document.getElementById('optionsInput');
       const btn = document.getElementById('startButton');
       const msg = document.getElementById('message');
+
+      // 從網址參數初始化預設選項 (?key=鼎旺,金蓬萊,...)
+      function initFromUrl() {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const keyParam = params.get('key');
+          if (keyParam) {
+            input.value = keyParam;
+          }
+        } catch (e) {
+          // 忽略 URL 解析錯誤，保留預設值
+        }
+      }
 
       let width = window.innerWidth;
       let height = window.innerHeight;
@@ -197,54 +210,79 @@
         }
       }
 
-      // 初始化卡片
+      // 初始化卡片：每個選項擁有相同數量的卡
       function seedFloatingCards() {
         floatingCards.length = 0;
         winnerCard = null;
         if (!options.length) return;
 
-        const baseCount = Math.min(120, Math.max(32, options.length * 10));
+        const maxCards = 140;
+        const minPerOption = 3;
+        let perOption = Math.floor(maxCards / options.length);
+        if (perOption < minPerOption) perOption = minPerOption;
+
         const maxRadius = Math.min(width, height) * 0.95;
 
-        for (let i = 0; i < baseCount; i++) {
-          const optionIndex = i % options.length;
-          const radius = 120 + Math.random() * maxRadius;
-          const angle = Math.random() * Math.PI * 2;
-          const depth = 0.45 + Math.random() * 1.1;
+        for (let optIndex = 0; optIndex < options.length; optIndex++) {
+          for (let j = 0; j < perOption; j++) {
+            const radius = 120 + Math.random() * maxRadius;
+            const angle = Math.random() * Math.PI * 2;
+            const depth = 0.45 + Math.random() * 1.1;
 
-          floatingCards.push({
-            optionIndex,
-            label: options[optionIndex],
-            radius,
-            angle,
-            depth,
-            speed: (Math.random() * 0.5 + 0.15) * (Math.random() < 0.5 ? 1 : -1),
-            wobbleAmp: 10 + Math.random() * 24,
-            wobblePhase: Math.random() * Math.PI * 2,
-            size: 18 + Math.random() * 16,
-            hue: 180 + Math.random() * 120,
-            seed: Math.random() * 1000,
-            flipPhase: Math.random() * Math.PI * 2,
-            flipSpeed: 0.6 + Math.random() * 0.9,
-            appearing: true,
-            birthTime: performance.now(),
-            lastX: null,
-            lastY: null
-          });
+            floatingCards.push({
+              optionIndex: optIndex,
+              label: options[optIndex],
+              radius,
+              angle,
+              depth,
+              speed: (Math.random() * 0.5 + 0.15) * (Math.random() < 0.5 ? 1 : -1),
+              wobbleAmp: 10 + Math.random() * 24,
+              wobblePhase: Math.random() * Math.PI * 2,
+              size: 18 + Math.random() * 16,
+              hue: 180 + Math.random() * 120,
+              seed: Math.random() * 1000,
+              flipPhase: Math.random() * Math.PI * 2,
+              flipSpeed: 0.6 + Math.random() * 0.9,
+              appearing: true,
+              birthTime: performance.now(),
+              lastX: null,
+              lastY: null
+            });
+          }
         }
       }
 
       // 輸入時只更新文字與 mapping，不重建架構
       input.addEventListener('input', () => {
         if (state !== 'idle' && state !== 'celebrate') return;
+
         parseOptions();
+        const newCount = options.length;
         msg.textContent = '';
 
-        if (!options.length) return;
+        if (!newCount) return;
+
+        // 第一次有選項時，初始化卡片
+        if (floatingCards.length === 0) {
+          seedFloatingCards();
+        }
+
+        const totalCards = floatingCards.length;
+        const perOption = Math.floor(totalCards / newCount);
+        const extra = totalCards % newCount;
+
+        // 用 seed 排序，分配會比較平均、穩定
+        const sorted = floatingCards.slice().sort((a, b) => a.seed - b.seed);
+        let idx = 0;
+        for (let optIndex = 0; optIndex < newCount; optIndex++) {
+          const targetCount = perOption + (optIndex < extra ? 1 : 0);
+          for (let k = 0; k < targetCount && idx < sorted.length; k++, idx++) {
+            const card = sorted[idx];
+            card.optionIndex = optIndex;
+          }
+        }
 
         for (const card of floatingCards) {
-          if (options.length === 0) continue;
-          card.optionIndex = card.optionIndex % options.length;
           card.label = options[card.optionIndex];
         }
 
@@ -314,6 +352,7 @@
 
       btn.addEventListener('click', startDraw);
 
+      initFromUrl();
       parseOptions();
       seedBackground();
       seedFloatingCards();
@@ -369,8 +408,8 @@
           const tOrb = time * 0.0008 * o.speed + o.phase;
           const y = o.y + Math.sin(tOrb) * 52 * o.depth;
           const x = o.x + Math.cos(tOrb * 0.85) * 78 * (o.depth - 0.4);
-          const r = o.baseR * (1.2 + 0.8 * o.depth); // 半徑更大一點，邊界更柔
-          const alphaBase = 0.18 + 0.22 * o.depth;   // 整體透明度偏柔和
+          const r = o.baseR * (1.2 + 0.8 * o.depth);
+          const alphaBase = 0.18 + 0.22 * o.depth;
 
           const orbGrad = ctx.createRadialGradient(x, y, 0, x, y, r);
           orbGrad.addColorStop(0, `rgba(180, 220, 255, ${alphaBase * 0.7})`);
@@ -387,21 +426,26 @@
         ctx.globalCompositeOperation = 'source-over';
         ctx.restore();
 
-        // 中央水波 / 旋渦圈圈
+        // 中央水波 / 旋渦圈圈：外圈 → 內圈無限循環
         const isRollingBg = state === 'rolling';
-        const elapsedRollingBg = isRollingBg ? (time - rollStart) : 0;
-        const scatterPhaseBg = isRollingBg ? Math.min(elapsedRollingBg / SCATTER_DURATION, 1) : 0;
-        const pull = 1 - 0.4 * scatterPhaseBg;
-        const baseR = Math.min(width, height) * 0.22 * pull;
-        for (let i = 0; i < 4; i++) {
-          const ringT = i / 3;
-          const r = baseR * (1 + ringT * 0.9 + Math.sin(time * 0.0015 + i) * 0.12 * (1 + scatterPhaseBg));
-          const alphaBase = 0.26 - ringT * 0.05 + 0.25 * scatterPhaseBg;
-          const alpha = Math.max(alphaBase, 0);
+        const baseMinR = Math.min(width, height) * 0.12;
+        const baseMaxR = Math.min(width, height) * 0.6;
+        const ringCount = 5;
+        const speedBase = 0.00025 * (isRollingBg ? 1.6 : 1);
+
+        for (let i = 0; i < ringCount; i++) {
+          const phase = (time * speedBase + i * 0.18) % 1; // 0~1
+          const inward = 1 - phase; // 1→0 往中心縮
+          const r = baseMinR + (baseMaxR - baseMinR) * inward;
+
+          const alphaBase = 0.12 + 0.28 * inward;
+          const alphaBoost = isRollingBg ? 0.18 * inward : 0;
+          const alpha = Math.max(alphaBase + alphaBoost, 0);
+
           ctx.beginPath();
           ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
           ctx.strokeStyle = `rgba(120, 180, 255, ${alpha})`;
-          ctx.lineWidth = 2 + i * 2 + scatterPhaseBg * 3;
+          ctx.lineWidth = 1.5 + 3.5 * inward + (isRollingBg ? 2 * inward : 0);
           ctx.stroke();
         }
       }
@@ -473,40 +517,36 @@
           let speedFactor = 1;
           let wobbleFactor = baseWobble;
           let radiusJitter = 12;
-          let vortexInward = 1;
-          let swirlExtra = 0;
+          let swirlExtra = 0.01 * (card.radius / (Math.min(width, height) * 0.95));
 
           if (isRolling) {
             const fall = Math.min(scatterPhase, 1);
-            // 進入黑洞：速度更快、抖動更大、半徑不斷收縮，甚至略微穿越中心
             speedFactor = 1 + 6.2 * (0.5 - Math.cos(fall * Math.PI) / 2);
             wobbleFactor = baseWobble + 3.2 * fall;
-            radiusJitter = 260 * fall * fall;
-            vortexInward = Math.max(-0.25, 1 - 2.0 * Math.pow(fall, 1.15));
+            radiusJitter = 220 * fall * fall;
             swirlExtra = 0.09 * fall * (card.radius / (Math.min(width, height) * 0.95));
-          } else {
-            speedFactor = 1;
-            wobbleFactor = baseWobble;
-            radiusJitter = 12;
-            vortexInward = 1;
-            swirlExtra = 0.01 * (card.radius / (Math.min(width, height) * 0.95));
           }
 
           card.angle += card.speed * 0.002 * speedFactor + swirlExtra;
           const wobble = Math.sin(time * 0.0025 + card.wobblePhase) * card.wobbleAmp * wobbleFactor;
           const breathe = 1 + 0.06 * Math.sin(time * 0.0012 + card.seed);
-          const baseRadius = card.radius * vortexInward * card.depth * breathe;
-          const dynBase = baseRadius + Math.sin(time * 0.0045 + card.wobblePhase) * radiusJitter * card.depth;
 
-          let x = centerX + Math.cos(card.angle) * dynBase;(card.angle) * dynBase;
-          let y = centerY + Math.sin(card.angle) * dynBase * 0.5 + wobble;
-
+          let dynBase;
           if (isRolling) {
-            const pullT = scatterPhase;
-            const pullStrength = 0.3 * pullT;
-            x = centerX + (x - centerX) * (1 - pullStrength);
-            y = centerY + (y - centerY) * (1 - pullStrength);
+            // 黑洞效果：每張牌在抽卡期間會經歷多次「外→內→消失再重生」的循環
+            const loops = 2.7;
+            const phase = (scatterPhase * loops + card.seed * 0.17) % 1;
+            const inward = 1 - phase;
+            const radialScale = 0.25 + inward * 1.1;
+            dynBase = card.radius * radialScale * card.depth * breathe +
+                      Math.sin(time * 0.0045 + card.wobblePhase) * radiusJitter * inward * card.depth;
+          } else {
+            const baseRadius = card.radius * card.depth * breathe;
+            dynBase = baseRadius + Math.sin(time * 0.0045 + card.wobblePhase) * radiusJitter * card.depth;
           }
+
+          let x = centerX + Math.cos(card.angle) * dynBase;
+          let y = centerY + Math.sin(card.angle) * dynBase * 0.5 + wobble;
 
           card.lastX = x;
           card.lastY = y;
