@@ -1363,6 +1363,11 @@
             timeWarp = 1;
           }
           blurProgress = Math.max(0, Math.min(1, elapsed / SCATTER_DURATION));
+
+          const targetShake = 3 + 25 * Math.pow(blurProgress, 1.2);
+          if (screenShake.intensity < targetShake) {
+            screenShake.intensity = targetShake;
+          }
         }
 
         const targetBlur = state === 'rolling' ? Math.min(1, blurProgress * 1.2) : 0;
@@ -1444,9 +1449,9 @@
           updateAuroras(delta, time);
         }
 
-        drawPeripheralBlur(time);
-
         ctx.restore(); // 恢復震動偏移
+
+        drawPeripheralBlur(time);
       }
 
       animate(performance.now());
